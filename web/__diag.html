@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>XWPH-DIAG</title>
+<style>
+  body { font: 13px/1.5 Consolas, monospace; background: #111; color: #ddd; margin: 0; padding: 12px; }
+  iframe { width: 1280px; height: 720px; border: 1px solid #444; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<!--
+  临时真机诊断页（不属于插件功能，排查完即删）。
+
+  为什么需要它：前端的桩测试全绿，但"真实 ComfyUI 前端会不会把
+  /extensions/... 下的模块跑起来并注册成功"只能真机验证。
+  这个页面与 ComfyUI 同源，所以可以直接读 iframe 里的 app 状态。
+
+  用法：
+    1) 确认它躺在 custom_nodes/comfyui-xwide-prompt-helper/web/ 下
+    2) msedge.exe --headless=new --dump-dom http://127.0.0.1:8188/extensions/comfyui-xwide-prompt-helper/__diag.html
+       报告会写进 <pre id="out">，同时 document.title 变成 XWPH-DIAG-DONE。
+-->
+<h3>X-Wide Prompt Helper 真机诊断</h3>
+<iframe id="f" src="/"></iframe>
+<pre id="out">running…</pre>
+<script>
+(function () {
+  var lines = [];
+  var frame = document.getElementById("f");
+
+  function record(tag, msg) {
+    lines.push("[" + tag + "] " + String(msg).slice(0, 500));
+  }
+
+  function hook(win) {
+    try {
+      var ce = win.console.error;
+      win.console.error = function () {
+        record("error", Array.prototype.map.call(arguments, describe).join(" "));
+        return ce.apply(win.console, arguments);
+      };
+      var cw = win.console.warn;
+      win.console.warn = function () {
+        record("warn", Array.prototype.map.call(arguments, describe).join(" "));
+        return cw.apply(win.console, arguments);
+      };
+      win.addEventListener("error", function (e) {
+        if (e.target && e.target.tagName === "SCRIPT") {
+          record("script-error", e.target.src + " :: " + e.message);
+          return;
+        }
+        record("window-error", (e.message || "?") + " @ " + (e.filename || "?") + ":" + (e.lineno || 0));
+      }, true);
+      win.addEventListener("unhandledrejection", function (e) {
+        record("rejection", describe(e.reason));
+      });
+    } catch (e) {
+      record("hook-fail", e);
+    }
+  }
+
+  function describe(v) {
+    if (v && v.stack) return v.stack.split("\n").slice(0, 3).join(" | ");
+    if (v && v.message) return v.message;
+    return String(v);
+  }
+
+  frame.addEventListener("load", function () {
+    var w = frame.contentWindow;
+    hook(w);
+    if (w.app && w.app.registerExtension) record("note", "iframe load 时 window.app 已存在");
+    else record("note", "iframe load 时 window.app 还不存在（正常）");
+  });
+
+  setTimeout(function () {
+    var w;
+    try { w = frame.contentWindow; } catch (e) { w = null; }
+    var report = { console: lines };
+
+    try {
+      report.helper_typeof = typeof w.XWidePromptHelper;
+      report.loaded_flag = !!w.__xwidePromptHelperLoaded;
+      report.app_typeof = typeof w.app;
+      report.register_typeof = typeof (w.app && w.app.registerExtension);
+      if (w.XWidePromptHelper) {
+        report.helper_keys = Object.keys(w.XWidePromptHelper);
+        report.shortcuts = w.XWidePromptHelper.shortcuts ? w.XWidePromptHelper.shortcuts() : null;
+        report.describe_positive = (function () { try { return w.XWidePromptHelper.describeTarget("positive"); } catch (e) { return "throw:" + e; } })();
+      }
+    } catch (e) {
+      report.probe_error = describe(e);
+    }
+
+    // 真按一次快捷键，看面板会不会出来
+    try {
+      var before = w.document.querySelectorAll(".xwph-overlay").length;
+      var ev = new w.KeyboardEvent("keydown", {
+        key: "p", code: "KeyP", keyCode: 80, which: 80,
+        ctrlKey: true, altKey: true, bubbles: true, cancelable: true,
+      });
+      w.document.dispatchEvent(ev);
+      report.shortcut_test = "before=" + before + " after=" + w.document.querySelectorAll(".xwph-overlay").length +
+        " textareas=" + w.document.querySelectorAll(".xwph-textarea").length;
+    } catch (e) {
+      report.shortcut_test = "throw:" + describe(e);
+    }
+
+    // 直接调 API 开一次，区分"快捷键没生效"和"面板本身坏了"
+    try {
+      w.XWidePromptHelper.open("positive");
+      report.api_open_test = "overlays=" + w.document.querySelectorAll(".xwph-overlay").length;
+    } catch (e) {
+      report.api_open_test = "throw:" + describe(e);
+    }
+
+    document.getElementById("out").textContent = JSON.stringify(report, null, 2);
+    document.title = "XWPH-DIAG-DONE";
+  }, 22000);
+})();
+</script>
+</body>
+</html>

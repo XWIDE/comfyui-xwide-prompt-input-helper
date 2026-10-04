@@ -1,0 +1,970 @@
+/*!
+ * X-WIDE Prompt Input Helper —— 样式 / stylesheet
+ *
+ * 配色全部走 ComfyUI 自己的 CSS 变量（--comfy-menu-bg / --comfy-input-bg /
+ * --border-color / --input-text / --descrip-text / --primary-bg …），
+ * 这样切换明暗主题时浮层会自动跟着变，不需要我们维护第二套颜色。
+ *
+ * 每个变量都带兜底值，原因：老前端（canvas 版）只定义了其中一部分变量，
+ * 而 var() 没有兜底就会让整个属性失效，浮层会变成透明的一坨。
+ */
+
+/* ------------------------------------------------------------------ 浮层 */
+/*
+ * 文字大小：用户 1.0.4 的要求是「里面的文字」要能调，并明确说了
+ * 「**这个 UI 界面的字体不要变大**，可以单独设置」——所以倍数 `--xwph-scale`
+ * **只作用在输入框里的正文**（`.xwph-textarea`），标题栏、目标条、按钮一律不动。
+ * 改字号的两个入口：输入框里 `Ctrl + 滚轮` 实时调、面板标题栏的 A- / A+，
+ * 设置面板里也有一行（同一个存储值 fontScale）。
+ * 想让别的元素也跟着变大时再单独给那条规则乘 `var(--xwph-scale, 1)`，别整块放大。
+ */
+
+.xwph-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  /* 浮层只是定位容器；点了它不该挡住画布以外的东西——它自己几乎全透明。 */
+  pointer-events: none;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--input-text, #ddd);
+  -webkit-font-smoothing: antialiased;
+}
+
+.xwph-overlay.xwph-hidden {
+  display: none;
+}
+
+.xwph-dialog {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 340px;
+  min-height: 200px;
+  /* 只有面板本身可交互，其余地方鼠标事件穿透回画布。 */
+  pointer-events: auto;
+  background: var(--comfy-menu-bg, #353535);
+  color: var(--input-text, #ddd);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.xwph-dialog *,
+.xwph-dialog *::before,
+.xwph-dialog *::after {
+  box-sizing: border-box;
+}
+
+/* 正/反向各给一条顶部色带，扫一眼就知道自己在哪个框里。 */
+.xwph-overlay[data-xwph-kind="positive"] .xwph-dialog {
+  border-top: 3px solid #3aa76d;
+}
+
+.xwph-overlay[data-xwph-kind="negative"] .xwph-dialog {
+  border-top: 3px solid #c8553d;
+}
+
+/* ------------------------------------------------------------------ 标题栏 */
+
+.xwph-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 10px;
+  background: var(--comfy-menu-secondary-bg, #292929);
+  border-bottom: 1px solid var(--border-color, #4e4e4e);
+  cursor: grab;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+.xwph-header:active {
+  cursor: grabbing;
+}
+
+.xwph-grip {
+  color: var(--descrip-text, #999);
+  font-size: 13px;
+  line-height: 1;
+  cursor: grab;
+}
+
+.xwph-title {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--input-text, #ddd);
+  white-space: nowrap;
+}
+
+.xwph-spacer {
+  flex: 1 1 auto;
+}
+
+/* ------------------------------------------------------------------ 目标条 */
+
+.xwph-targetbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 10px;
+  background: var(--comfy-menu-bg, #353535);
+  border-bottom: 1px solid var(--border-color, #4e4e4e);
+  flex: 0 0 auto;
+}
+
+.xwph-target-label {
+  color: var(--descrip-text, #999);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.xwph-target-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  font-size: 11.5px;
+  font-family: inherit;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.xwph-target-select:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+/* 没有目标时把下拉框标红，用户不可能看漏。 */
+.xwph-target-select.xwph-target-missing {
+  color: var(--error-text, #f44);
+  border-color: var(--error-text, #f44);
+  opacity: 1;
+}
+
+/*
+ * 依据行：一行小字说清"凭什么认成这个目标"（控件名 / 线落在哪个入口 / 按正向兜底）。
+ * 只在有依据时出现；没有依据（用户自己点的候选）就整行藏起来，不占地方。
+ */
+.xwph-evidence {
+  padding: 3px 10px 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--descrip-text, #999);
+  background: var(--comfy-menu-bg, #353535);
+  border-bottom: 1px solid var(--border-color, #4e4e4e);
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------- 一次性候选（平时藏起来） */
+
+/*
+ * 只在"这张图还没定过写哪个框"时出现，选完就消失。
+ * 用户明确不要常驻列表（m03294），所以这里默认 xwph-hidden。
+ */
+.xwph-picker {
+  flex: 0 0 auto;
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 6px 8px 8px;
+  background: var(--comfy-menu-bg, #353535);
+  border-bottom: 1px solid var(--border-color, #4e4e4e);
+}
+
+.xwph-picker-hint {
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.xwph-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.xwph-picker-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 7px;
+  font-family: inherit;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.xwph-picker-item:hover {
+  border-color: var(--p-primary-color, #4a90d9);
+  background: var(--comfy-menu-bg, #3a3a3a);
+}
+
+.xwph-picker-title {
+  font-weight: 600;
+}
+
+/* "连到 K采样器 · positive" —— 用户判断该点哪个的依据，别让它太淡。 */
+.xwph-picker-link {
+  color: var(--p-primary-color, #6ab0f3);
+}
+
+.xwph-picker-preview {
+  color: var(--descrip-text, #999);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------------ 输入区 */
+
+.xwph-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  padding: 8px;
+}
+
+.xwph-textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 9px;
+  resize: none;
+  outline: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Cascadia Mono", monospace;
+  /* 比 ComfyUI 默认的 10px 大一点：这个框是给人长时间读写的。 */
+  font-size: calc(12.5px * var(--xwph-scale, 1));
+  line-height: 1.55;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 6px;
+  word-break: break-word;
+  overflow: auto;
+}
+
+.xwph-textarea:focus {
+  border-color: var(--primary-bg, #236692);
+  box-shadow: 0 0 0 1px var(--primary-bg, #236692) inset;
+}
+
+.xwph-textarea::placeholder {
+  color: var(--descrip-text, #999);
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------------------ 底部按钮 */
+
+.xwph-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 8px 8px 10px;
+  border-top: 1px solid var(--border-color, #4e4e4e);
+  background: var(--comfy-menu-secondary-bg, #292929);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.xwph-counter {
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.xwph-btn {
+  height: 24px;
+  padding: 0 9px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.xwph-btn:hover {
+  background: var(--primary-hover-bg, #3485bb);
+  border-color: var(--primary-hover-bg, #3485bb);
+  color: var(--primary-fg, #fff);
+}
+
+.xwph-btn:active {
+  transform: translateY(1px);
+}
+
+.xwph-btn:focus-visible {
+  outline: 2px solid var(--primary-bg, #236692);
+  outline-offset: 1px;
+}
+
+.xwph-btn-primary {
+  background: var(--primary-bg, #236692);
+  border-color: var(--primary-bg, #236692);
+  color: var(--primary-fg, #fff);
+  font-weight: 600;
+}
+
+.xwph-btn-primary:hover {
+  background: var(--primary-hover-bg, #3485bb);
+  border-color: var(--primary-hover-bg, #3485bb);
+}
+
+.xwph-btn-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--descrip-text, #999);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.xwph-btn-icon:hover {
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border-color: var(--border-color, #4e4e4e);
+}
+
+.xwph-hidden {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------------ 缩放手柄 */
+
+.xwph-resizer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  /* 两条斜线画出经典的“可缩放”角标。 */
+  background: linear-gradient(
+    135deg,
+    transparent 0 46%,
+    var(--border-color, #4e4e4e) 46% 54%,
+    transparent 54% 68%,
+    var(--border-color, #4e4e4e) 68% 76%,
+    transparent 76%
+  );
+}
+
+/* ------------------------------------------------------------------ 提示条 */
+
+.xwph-toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 100010;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.xwph-toast {
+  max-width: 60vw;
+  padding: 7px 14px;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-menu-bg, #353535);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-left: 3px solid var(--descrip-text, #999);
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  animation: xwph-toast-in 0.16s ease-out;
+  word-break: break-word;
+}
+
+.xwph-toast-ok {
+  border-left-color: #3aa76d;
+}
+
+.xwph-toast-warn {
+  border-left-color: #d9a441;
+}
+
+.xwph-toast-error {
+  border-left-color: var(--error-text, #f44);
+  color: var(--error-text, #f44);
+}
+
+@keyframes xwph-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------ 词库菜单 */
+
+.xwph-libmenu {
+  position: fixed;
+  z-index: 100020;
+  min-width: 240px;
+  max-width: 380px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 6px;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-menu-bg, #353535);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.xwph-libhead {
+  padding: 2px 4px 5px;
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+}
+
+.xwph-libsave {
+  display: flex;
+  gap: 5px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color, #4e4e4e);
+  margin-bottom: 5px;
+}
+
+.xwph-libinput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 7px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 5px;
+  outline: none;
+}
+
+.xwph-libinput:focus {
+  border-color: var(--primary-bg, #236692);
+}
+
+.xwph-librow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.xwph-librow:hover {
+  background: var(--comfy-menu-secondary-bg, #292929);
+  border-radius: 5px;
+}
+
+.xwph-libname {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  border-color: transparent;
+}
+
+.xwph-libname:hover {
+  background: transparent;
+  color: var(--primary-hover-bg, #3485bb);
+  border-color: transparent;
+}
+
+.xwph-libempty {
+  padding: 6px 4px;
+  color: var(--descrip-text, #999);
+  line-height: 1.5;
+}
+
+/* ------------------------------------------------------------------ 设置面板 */
+
+.xwph-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100030;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.xwph-settings {
+  width: min(520px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 16px 18px 14px;
+  font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-menu-bg, #353535);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.xwph-settings h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.xwph-settings .xwph-settings-intro {
+  margin: 0 0 14px;
+  color: var(--descrip-text, #999);
+}
+
+.xwph-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--border-color, #4e4e4e);
+}
+
+.xwph-setting-label {
+  flex: 1 1 auto;
+}
+
+.xwph-setting-note {
+  display: block;
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+}
+
+.xwph-keycap {
+  min-width: 150px;
+  padding: 5px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  text-align: center;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.xwph-keycap:hover {
+  border-color: var(--primary-bg, #236692);
+}
+
+.xwph-keycap.xwph-keycap-capturing {
+  color: var(--primary-fg, #fff);
+  background: var(--primary-bg, #236692);
+  border-color: var(--primary-bg, #236692);
+}
+
+.xwph-settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, #4e4e4e);
+}
+
+.xwph-settings-note {
+  margin-top: 10px;
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.xwph-about-body {
+  margin: 8px 0 0;
+  line-height: 1.7;
+}
+
+.xwph-about-body code {
+  padding: 1px 5px;
+  font-size: 11.5px;
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 4px;
+}
+
+/* -------------------------------------------------------- 页脚：自动粘贴勾选框 */
+
+.xwph-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  color: var(--descrip-text, #999);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.xwph-check:hover {
+  color: var(--input-text, #ddd);
+  border-color: var(--border-color, #4e4e4e);
+}
+
+.xwph-check-box {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--primary-bg, #236692);
+  cursor: pointer;
+}
+
+.xwph-check-text {
+  line-height: 1;
+}
+
+/* --------------------------------------------------------- 信息页（关于）品牌区 */
+/*
+ * 样子照 X-WIDE_plugin_model_manager 的信息页来（用户 1.0.4 给的参考图）：
+ * logo 垫白底卡片 → 标题 → 粉字副标题 → 版本/协议徽章 → 免责声明小字 → 分卡片内容。
+ * 那边的配色是写死的深色（#1b1f26 / #2a2f3a 这一套），这里沿用，
+ * 因为 ComfyUI 的画布默认就是深色，用变量反而会跟弹窗底色撞。
+ */
+
+.xwph-about {
+  width: min(560px, 92vw);
+}
+
+.xwph-about-brand {
+  text-align: center;
+}
+
+/* 横版 logo 是深色字 + 亮色描边，必须垫一张白底卡片才看得清 */
+.xwph-about-logo {
+  width: 212px;
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  border-radius: 14px;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+
+.xwph-about-title {
+  margin-top: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #e6e8ee;
+}
+
+.xwph-about-sub {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 0.2px;
+  color: #ff7ab8;
+}
+
+.xwph-about-meta {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.xwph-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  font-size: 13px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.xwph-badge-info {
+  background: #1b2f47;
+  color: #8fc4ff;
+  border-color: #274866;
+}
+
+.xwph-badge-plain {
+  background: #242a35;
+  color: #aab2c4;
+  border-color: #333b49;
+}
+
+.xwph-badge-good {
+  background: #173a24;
+  color: #7ee2a8;
+  border-color: #255c39;
+}
+
+.xwph-badge-warn {
+  background: #3d3116;
+  color: #f2c66d;
+  border-color: #5c4a1e;
+}
+
+.xwph-badge-bad {
+  background: #3d1d1d;
+  color: #ff9c9c;
+  border-color: #5c2a2a;
+}
+
+/* 协议徽章：点一下打开仓库里的 LICENSE */
+.xwph-about-lic {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ec1ff;
+  background: #1d2635;
+  border: 1px solid #2f3f5c;
+  border-radius: 999px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.xwph-about-lic:hover {
+  background: #243149;
+}
+
+.xwph-about-disc {
+  margin-top: 10px;
+  padding-top: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: left;
+  color: #8d94a6;
+  border-top: 1px dashed #2a3040;
+}
+
+/* ------------------------------------------------------------- 信息页的内容卡片 */
+
+.xwph-card {
+  margin-top: 14px;
+  padding: 12px 14px;
+  text-align: left;
+  background: #1b1f26;
+  border: 1px solid #2a2f3a;
+  border-radius: 10px;
+}
+
+.xwph-card-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #c9cfdd;
+}
+
+.xwph-about-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.xwph-linkbtn {
+  display: inline-block;
+  padding: 7px 13px;
+  font-size: 13.5px;
+  color: var(--input-text, #e6e8ee);
+  background: #242a35;
+  border: 1px solid #333b49;
+  border-radius: 7px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.xwph-linkbtn:hover {
+  background: #2d3542;
+}
+
+.xwph-about-text {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--input-text, #c9cfdd);
+  white-space: pre-line;
+}
+
+/* --------------------------------- 设置面板里 X-WIDE 那一页（1.0.4 的排版要求） */
+/*
+ * 用户要的「居中排版」。
+ *
+ * 真机探出来的结构（Chromium 里读的）：
+ *   div.setting-item                       ← 一行
+ *     └ div.flex.min-h-8.flex-row          ← 行内布局
+ *         ├ div.form-label.flex.grow       ← 左边那列标签（宽约 358px）
+ *         └ div.form-input.flex.justify-end← 右边那列控件（宽 640px，内容**靠右**）
+ * 所以我们右边这块永远被顶到最右 —— 这就是"没居中"的根。
+ *
+ * 修法：这一页的每一行都把标签列藏掉，控件列占满整行并改成**居中**。
+ * 每张卡片自己带标题（快捷键 / 自动粘贴 / 文字大小…），所以藏掉左边那列不丢信息；
+ * 设置面板的搜索是按设置项名字过滤的，也照样搜得到。
+ * `:has()` 需要 Chromium 105+（Edge / Chrome 都是），拿不到就退化成现在的样子，不会坏。
+ */
+
+.setting-item:has(.xwph-page) .form-label,
+.setting-item:has(.xwph-card) .form-label,
+.setting-item:has(.xwph-check-line) .form-label {
+  display: none;
+}
+
+.setting-item:has(.xwph-page) .form-input,
+.setting-item:has(.xwph-card) .form-input,
+.setting-item:has(.xwph-check-line) .form-input {
+  flex: 1 1 auto;
+  width: 100%;
+  justify-content: center;
+}
+
+.xwph-page,
+.xwph-card {
+  width: 100%;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.xwph-page {
+  max-width: 640px;
+}
+
+.xwph-check-line {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.xwph-page .xwph-card {
+  margin-top: 10px;
+}
+
+.xwph-page .xwph-about-logo {
+  width: 180px;
+}
+
+.xwph-page .xwph-card-title {
+  margin-bottom: 6px;
+}
+
+.xwph-page .xwph-font-note,
+.xwph-page .xwph-shortcut-note {
+  margin-top: 8px;
+}
+
+/* --------------------------------------------------------- 快捷键检查（原生设置里） */
+
+.xwph-shortcut-editor {
+  padding: 4px 0 2px;
+}
+
+.xwph-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-color, #4e4e4e);
+}
+
+.xwph-shortcut-row .xwph-shortcut-name {
+  flex: 1 1 auto;
+}
+
+.xwph-shortcut-status {
+  margin: 2px 0 0 0;
+  padding-left: 2px;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.xwph-ok {
+  color: #7fd18f;
+}
+
+.xwph-warn {
+  color: #ffd479;
+}
+
+.xwph-bad {
+  color: #ff7b7b;
+}
+
+.xwph-shortcut-note {
+  margin-top: 10px;
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.xwph-shortcut-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------- 文字大小（设置面板里那一行） */
+
+.xwph-font-editor {
+  padding: 4px 0 2px;
+}
+
+.xwph-font-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.xwph-font-value {
+  min-width: 52px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.xwph-font-note {
+  margin-top: 8px;
+  color: var(--descrip-text, #999);
+  font-size: 11px;
+  line-height: 1.6;
+}

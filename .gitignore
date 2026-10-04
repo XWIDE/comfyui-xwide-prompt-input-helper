@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node（测试只用到内置模块，这里主要是防手滑）
+node_modules/
+
+# 测试产物
+tests/last-run.txt
+tests/last-progress.txt
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

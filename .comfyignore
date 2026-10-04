@@ -1,0 +1,11 @@
+# 这些只在 GitHub 上有用，不打进 ComfyUI Registry 的插件包
+.github/
+docs/
+tests/
+__pycache__/
+
+# 本机跑测试留下的报告 / 运行期日志
+*.log
+*.pyc
+tests/last-run.txt
+tests/last-progress.txt
