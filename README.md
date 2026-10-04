@@ -1,6 +1,6 @@
 # X-WIDE Prompt Input Helper
 
-<img src="https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-helper/main/web/logo_xwide.png" alt="X-WIDE — I BELIEVE" width="360">
+<img src="https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/logo_xwide.png" alt="X-WIDE — I BELIEVE" width="360">
 
 [English](README.en.md) | **中文**
 
@@ -232,7 +232,7 @@ node tests/run.mjs
 
 | | |
 | --- | --- |
-| 插件仓库 | <https://github.com/XWIDE/comfyui-xwide-prompt-helper> |
+| 插件仓库 | <https://github.com/XWIDE/comfyui-xwide-prompt-input-helper> |
 | GitHub | <https://github.com/XWIDE> |
 | B 站 | <https://space.bilibili.com/374064919> |
 | 插件市场 | <https://registry.comfy.org/publishers/xwide> |

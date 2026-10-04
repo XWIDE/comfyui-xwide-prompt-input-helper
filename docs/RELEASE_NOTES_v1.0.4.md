@@ -1,7 +1,7 @@
 # v1.0.4 — X-WIDE 提示词输入插件 / X-WIDE Prompt Input Helper
 
 > 这份文件是 GitHub Release 的现成文案：在
-> <https://github.com/XWIDE/comfyui-xwide-prompt-helper/releases/new> 里选好标签 `v1.0.4`，
+> <https://github.com/XWIDE/comfyui-xwide-prompt-input-helper/releases/new> 里选好标签 `v1.0.4`，
 > 把下面横线以内的内容整段粘进正文即可。
 
 ---
@@ -50,7 +50,7 @@
 
 ### 许可
 
-GPL-3.0，全文见仓库里的 [LICENSE](https://github.com/XWIDE/comfyui-xwide-prompt-helper/blob/main/LICENSE)。
+GPL-3.0，全文见仓库里的 [LICENSE](https://github.com/XWIDE/comfyui-xwide-prompt-input-helper/blob/main/LICENSE)。
 
 ---
 
@@ -100,4 +100,4 @@ nothing is ever written somewhere you were not looking.
 ### Licence
 
 GPL-3.0 — the full text is in the repository's
-[LICENSE](https://github.com/XWIDE/comfyui-xwide-prompt-helper/blob/main/LICENSE).
+[LICENSE](https://github.com/XWIDE/comfyui-xwide-prompt-input-helper/blob/main/LICENSE).

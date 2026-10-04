@@ -29,10 +29,10 @@ import "./prompt_panel.js";
   var AUTHOR = "X-WIDE";
   var LOGO_FILE = "logo_xwide.png";
   var LOGO_ICON_FILE = "logo_xwide_icon.png";
-  var REPO_URL = "https://github.com/XWIDE/comfyui-xwide-prompt-helper";
-  var LOGO_FALLBACK = "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-helper/main/web/" + LOGO_FILE;
+  var REPO_URL = "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper";
+  var LOGO_FALLBACK = "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/" + LOGO_FILE;
   var LOGO_ICON_FALLBACK =
-    "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-helper/main/web/" + LOGO_ICON_FILE;
+    "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/" + LOGO_ICON_FILE;
   var LICENSE_URL = REPO_URL + "/blob/main/LICENSE";
   var LINKS = [
     { key: "linkRepo", url: REPO_URL },

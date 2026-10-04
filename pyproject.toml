@@ -1,5 +1,5 @@
 [project]
-name = "x-wide-prompt-helper"
+name = "x-wide-prompt-input-helper"
 version = "1.0.4"
 description = "X-WIDE Prompt Input Helper —— 正向/反向提示词浮窗：按键（默认 P / N，可自设）弹出输入框，从别处复制的内容自动收进来，回车直接写回画布上那个文本控件，不新增节点、不改现有流程"
 license = { file = "LICENSE" }
@@ -10,12 +10,12 @@ readme = "README.md"
 keywords = ["comfyui", "prompt", "positive", "negative", "clip", "text", "x-wide"]
 
 [project.urls]
-Repository = "https://github.com/XWIDE/comfyui-xwide-prompt-helper"
-"Bug Tracker" = "https://github.com/XWIDE/comfyui-xwide-prompt-helper/issues"
-Documentation = "https://github.com/XWIDE/comfyui-xwide-prompt-helper#readme"
+Repository = "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper"
+"Bug Tracker" = "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper/issues"
+Documentation = "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper#readme"
 
 [tool.comfy]
 PublisherId = "xwide"
 DisplayName = "X-WIDE Prompt Input Helper"
-Icon = "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-helper/main/web/logo_xwide_icon.png"
+Icon = "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/logo_xwide_icon.png"
 includes = []

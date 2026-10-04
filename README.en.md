@@ -1,6 +1,6 @@
 # X-WIDE Prompt Input Helper
 
-<img src="https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-helper/main/web/logo_xwide.png" alt="X-WIDE — I BELIEVE" width="360">
+<img src="https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/logo_xwide.png" alt="X-WIDE — I BELIEVE" width="360">
 
 [中文](README.md) | **English**
 
@@ -246,7 +246,7 @@ any Electron binary works with `ELECTRON_RUN_AS_NODE=1`).
 
 | | |
 | --- | --- |
-| Repository | <https://github.com/XWIDE/comfyui-xwide-prompt-helper> |
+| Repository | <https://github.com/XWIDE/comfyui-xwide-prompt-input-helper> |
 | GitHub | <https://github.com/XWIDE> |
 | Bilibili | <https://space.bilibili.com/374064919> |
 | Registry | <https://registry.comfy.org/publishers/xwide> |

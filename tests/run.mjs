@@ -1793,7 +1793,7 @@ const licenseLink = aboutBox.querySelector(".xwph-about-lic");
 ok(!!licenseLink, "协议是个可点的徽章");
 eq(
   String(licenseLink && licenseLink.href),
-  "https://github.com/XWIDE/comfyui-xwide-prompt-helper/blob/main/LICENSE",
+  "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper/blob/main/LICENSE",
   "协议徽章指向仓库里的 LICENSE"
 );
 ok(!!aboutBox.querySelector(".xwph-about-disc"), "有免责声明那一行");
@@ -1801,7 +1801,7 @@ ok(!!aboutBox.querySelector(".xwph-card"), "有内容卡片（作者与链接 / 
 
 const aboutLinks = aboutBox.querySelectorAll(".xwph-linkbtn").map((a) => a.href);
 eq(aboutLinks.length, 2, "「作者与链接」只留两个入口");
-ok(aboutLinks.some((h) => h === "https://github.com/XWIDE/comfyui-xwide-prompt-helper"), "有 GitHub 仓库链接");
+ok(aboutLinks.some((h) => h === "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper"), "有 GitHub 仓库链接");
 ok(aboutLinks.some((h) => h === "https://space.bilibili.com/374064919"), "有 B 站链接");
 
 // 用法那几段长文从设置行 tooltip 搬到了这里（tooltip 会挂在那儿不消失）。
