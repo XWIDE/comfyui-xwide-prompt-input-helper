@@ -1,7 +1,18 @@
 name: Publish to Comfy Registry
 
-# 打 tag（vX.Y.Z）时自动把节点发布到 ComfyUI Registry。
-# 需要在仓库 Settings → Secrets 里配置 REGISTRY_ACCESS_TOKEN。
+# 上架 ComfyUI Registry（ComfyUI Manager 能不能搜到，就看这一步）。
+#
+# 触发方式有两个：
+#   1. 手动：仓库 Actions 页面 → 左边选 "Publish to Comfy Registry" → Run workflow；
+#   2. 推 `v*` 标签时自动跑一次（发版时顺手把商店也更新了）。
+#      ⚠️ 用标签触发前必须先配好下面的 secret，否则这一跑会红。
+#
+# 需要先在仓库 Settings → Secrets and variables → Actions 里建：
+#   Name:  REGISTRY_ACCESS_TOKEN
+#   Value: registry.comfy.org 上生成的 publishing key
+#
+# 注意：Registry 不允许同一个 version 发两次（会返回 400 Version already exists），
+# 所以每次发布前先把 pyproject.toml 的 version 递增。
 on:
   workflow_dispatch:
   push:
@@ -18,17 +29,8 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install comfy-cli
-        run: pip install comfy-cli
-
-      - name: Install ComfyUI
-        run: comfy --skip-prompt install --nvidia --fast-deps
-
+      # 只做发布：不装 ComfyUI、不装 comfy-cli —— 发布一个纯前端插件用不着，
+      # 装了反而要跑好几分钟（还多一处可能失败的地方）。
       - name: Publish Custom Node
         uses: Comfy-Org/publish-node-action@main
         with:
