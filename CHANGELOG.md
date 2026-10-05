@@ -1,5 +1,21 @@
 # 更新日志
 
+## 1.0.6 — 2026-10
+
+**为什么发这一版**：1.0.5 装机后**整个界面没有样式** —— logo 撑满整列、卡片没有边框和底色、
+设置页也不居中，看起来像“没穿衣服”。根因很小但很典型：
+
+- `web/js/prompt_panel.js` 的 `ensureStyles()` 靠 `document.currentScript.src` 找自己的 CSS。
+  可这个文件是被 `import` 进来的，**ES module 里 `document.currentScript` 恒为 null**（规范如此），
+  于是它每次都落到写死的兜底地址 `/extensions/comfyui-xwide-prompt-helper/css/prompt_panel.css`。
+  1.0.4 之前目录名正好就是它，所以一直没露馅；1.0.5 把目录改名成
+  `comfyui-xwide-prompt-input-helper` 之后，这条 404，样式表整个没加载。
+- 修法：**样式表地址从本模块自己的 `import.meta.url` 反推**（本文件永远是 `<路由>/js/prompt_panel.js`
+  → 同级 `css/prompt_panel.css`），跟 1.0.5 里 logo 的做法一致：目录名怎么改都跟着走。
+  `currentScript` 只留作非常规加载方式的退路，写死的旧目录名退到最后。
+- 测试补了一条断言把同一个坑钉死：注入的 `<link id="xwph-style">` 地址必须等于**按模块自身位置算出来**
+  的 `web/css/prompt_panel.css`（写死路径立刻红灯）。
+
 ## 1.0.5 — 2026-10
 
 **为什么发这一版**：1.0.4 在 Comfy Registry 上是 `NodeVersionStatusFlagged`（上架审查被拦），

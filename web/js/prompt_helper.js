@@ -21,7 +21,7 @@ import "./prompt_panel.js";
   var PKG = "comfyui-xwide-prompt-helper";
   var I18N = globalThis.XWidePromptI18n;
   var Panel = globalThis.XWidePromptPanel;
-  var PLUGIN_VERSION = "1.0.5";
+  var PLUGIN_VERSION = "1.0.6";
 
   /**
    * 扩展在 ComfyUI 里的静态路由名（= custom_nodes 下的**目录名**）。

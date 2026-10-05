@@ -4,7 +4,7 @@
 
 [English](README.en.md) | **中文**
 
-![version](https://img.shields.io/badge/version-1.0.5-blue)
+![version](https://img.shields.io/badge/version-1.0.6-blue)
 ![license](https://img.shields.io/badge/license-GPL--3.0-green)
 ![comfyui](https://img.shields.io/badge/ComfyUI%20frontend-%E2%89%A5%201.3-blue)
 

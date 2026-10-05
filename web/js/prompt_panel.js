@@ -26,6 +26,29 @@
   var I18N = globalThis.XWidePromptI18n;
   var Bridge = globalThis.XWidePromptBridge;
 
+  /**
+   * 本文件自己的 URL —— 它永远是 `<路由>/js/prompt_panel.js`。
+   *
+   * 用途只有一个：找自己的 CSS。**不能用 `document.currentScript`** ——
+   * 本文件是被 `import` 进来的，而 ES module 里 `document.currentScript`
+   * **恒为 null**（规范如此），所以那条路在真机上永远走不通。
+   *
+   * 血案（1.0.5 装机版）：正因为 currentScript 是 null，样式表地址一直落到写死的
+   * `/extensions/comfyui-xwide-prompt-helper/css/prompt_panel.css`；目录被改名成
+   * `comfyui-xwide-prompt-input-helper` 之后它 **404**，于是整个面板 CSS 都没加载
+   * —— logo 撑满整列、卡片没有边框、设置页也不居中，界面像“没穿衣服”。
+   *
+   * 写法上必须是完整的 `import.meta.url`：拆成对象属性就不是 import.meta 语法了。
+   * 仓库里同时有 `"type": "module"` 的 package.json，测试（Node/Electron）也一样拿得到。
+   */
+  var SELF_URL = (function () {
+    try {
+      return String(import.meta.url || "");
+    } catch (err) {
+      return "";
+    }
+  })();
+
   var VALID_KINDS = ["positive", "negative"];
 
   /** 面板默认尺寸：够看 8 行提示词，又不至于盖住整个画布。 */
@@ -3381,14 +3404,21 @@
       link.id = id;
       link.rel = "stylesheet";
 
-      // 从当前脚本 URL 反推 css 目录，这样 /extensions/<pkg>/web/js/ 这种路径也能找对。
+      // 从**本模块自己的 URL** 反推 css 目录：本文件永远是 `<路由>/js/prompt_panel.js`，
+      // 所以把 `/js/<文件名>` 换成 `/css/prompt_panel.css` 就一定是同一个路由下的样式表。
+      // 目录名被用户改过、插件被装到别的子路径下，这条路都跟着走（1.0.5 就是死在这里）。
       var href = null;
-      try {
-        var current = doc.currentScript && doc.currentScript.src;
-        if (current) href = current.replace(/\/js\/[^/]*$/, "/css/prompt_panel.css");
-      } catch (err) {
-        href = null;
+      if (SELF_URL) href = SELF_URL.replace(/\/js\/[^/?#]*$/, "/css/prompt_panel.css");
+      if (!href) {
+        // 退路：非常规加载方式（例如被内联成普通脚本）时 currentScript 才有值。
+        try {
+          var current = doc.currentScript && doc.currentScript.src;
+          if (current) href = current.replace(/\/js\/[^/]*$/, "/css/prompt_panel.css");
+        } catch (err) {
+          href = null;
+        }
       }
+      // 最后的兜底：目录名被改过时这条一定 404，只保证“至少有个地址可以试”。
       if (!href) href = "/extensions/comfyui-xwide-prompt-helper/css/prompt_panel.css";
 
       link.href = href;

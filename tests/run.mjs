@@ -1819,8 +1819,8 @@ ok(
 ok(String(aboutBox.querySelector(".xwph-about-sub").textContent).length > 0, "有一句副标题");
 
 const aboutMeta = String(aboutBox.querySelector(".xwph-about-meta").textContent || "");
-ok(aboutMeta.includes("1.0.5"), "徽章里写着版本号 1.0.5");
-eq(helper.version, "1.0.5", "插件对外报的版本号也是 1.0.5");
+ok(aboutMeta.includes("1.0.6"), "徽章里写着版本号 1.0.6");
+eq(helper.version, "1.0.6", "插件对外报的版本号也是 1.0.6");
 ok(aboutMeta.includes("GPL-3.0"), "徽章里写着协议 GPL-3.0");
 const licenseLink = aboutBox.querySelector(".xwph-about-lic");
 ok(!!licenseLink, "协议是个可点的徽章");
@@ -1973,6 +1973,26 @@ ok(
 ok(
   !String(internals.__logoUrl()).includes("/extensions/comfyui-xwide-prompt-helper/"),
   "没有用写死的老目录名拼地址"
+);
+
+// 同一个坑的另一半，1.0.5 装机后真正炸的那一半：面板样式表。
+//
+// 当时 `ensureStyles()` 靠 `document.currentScript.src` 找 CSS，可这个文件是被 `import`
+// 进来的 —— ES module 里 `document.currentScript` **恒为 null**（规范如此，桩里
+// tests/dom.mjs 也是照规范设的 null），于是每次都落到写死的旧目录名上：目录一改名，样式表
+// 直接 404，整个界面变成没样式的裸文字（logo 撑满整列、卡片没边框、设置页不居中）。
+// 现在地址从**本模块自己的 URL** 反推，所以这里断言它必须等于按模块位置算出来的那份 CSS：
+// 谁再把它写回写死的路径，这条立刻红灯。
+const styleLink = env.doc.getElementById("xwph-style") || globalThis.XWidePromptPanel.ensureStyles();
+ok(!!styleLink, "面板样式表的 <link> 已经注入");
+eq(
+  String(styleLink && styleLink.href),
+  fileUrl("../web/css/prompt_panel.css").href,
+  "样式表地址按模块自己的位置算出来（写死路径在改名后会 404）"
+);
+ok(
+  !String(styleLink && styleLink.href).includes("/extensions/comfyui-xwide-prompt-helper/"),
+  "样式表地址没有用写死的老目录名"
 );
 
 // ------------------------------------------------------------------ 结果
