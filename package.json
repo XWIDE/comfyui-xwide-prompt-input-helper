@@ -1,0 +1,6 @@
+{
+  "name": "comfyui-xwide-prompt-input-helper",
+  "private": true,
+  "type": "module",
+  "description": "ComfyUI 前端扩展用：web/js 下的 .js 是 ES module，Node 侧（tests/run.mjs）也要能 import。ComfyUI 自身不看这个文件。"
+}

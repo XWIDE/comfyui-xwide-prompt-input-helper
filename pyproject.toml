@@ -1,6 +1,6 @@
 [project]
 name = "x-wide-prompt-input-helper"
-version = "1.0.4"
+version = "1.0.5"
 description = "X-WIDE Prompt Input Helper —— 正向/反向提示词浮窗：按键（默认 P / N，可自设）弹出输入框，从别处复制的内容自动收进来，回车直接写回画布上那个文本控件，不新增节点、不改现有流程"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
