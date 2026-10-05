@@ -1,10 +1,10 @@
 # X-WIDE Prompt Input Helper
 
-<img src="https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/logo_xwide.png" alt="X-WIDE — I BELIEVE" width="360">
+<img src="web/logo_xwide.png" alt="X-WIDE — I BELIEVE" width="360">
 
 [English](README.en.md) | **中文**
 
-![version](https://img.shields.io/badge/version-1.0.4-blue)
+![version](https://img.shields.io/badge/version-1.0.5-blue)
 ![license](https://img.shields.io/badge/license-GPL--3.0-green)
 ![comfyui](https://img.shields.io/badge/ComfyUI%20frontend-%E2%89%A5%201.3-blue)
 

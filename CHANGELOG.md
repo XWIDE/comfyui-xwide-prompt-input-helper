@@ -1,5 +1,20 @@
 # 更新日志
 
+## 1.0.5 — 2026-10
+
+**为什么发这一版**：1.0.4 在 Comfy Registry 上是 `NodeVersionStatusFlagged`（上架审查被拦），
+所以 ComfyUI-Manager 的「安装新扩展」里搜不到、装了也会被安全策略挡下。查到的原因只有一个：
+
+- 安全扫描命中 `contains_blacklisted_url`（"Detects blacklisted URLs in code"，置信度 90）——
+  `web/js/prompt_helper.js` 里把外部图片站写成了 logo 的**兜底地址**，正面命中了该站的域名。
+  Registry 把源码里硬写的外部 URL 当黑名单处理，不管它指向哪儿、也不管是不是自己的仓库。
+- 修法：**所有图片地址只从插件自己的静态目录取**（`/extensions/comfyui-xwide-prompt-helper/…`）。
+  `logoUrl()` 与兜底链（横版 → 方形图标）现在共用一个新的 `extAssetUrl(fileName)`，
+  URL 各段在运行时拼、源码里不留任何完整的绝对地址；行为与 1.0.4 一致，只是不再出网。
+  README 顶部的 logo 改用仓库相对路径（GitHub 上一样显示，发布包里也不再写死外部地址），
+  `pyproject.toml` 的 `Icon` 仍是 Registry 元数据字段、按官方要求保留完整地址。
+  `REPO_URL`（GitHub 仓库、LICENSE 链接）保持不动 —— 那是给用户点的仓库页链接，不是图片兜底地址。
+
 ## 1.0.4 — 2026-10
 
 用户发来四张图：设置面板的截图（「我的排板有问题的地方」）、X-WIDE 横版 logo（「主要是文档了」）、

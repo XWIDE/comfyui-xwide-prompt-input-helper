@@ -21,7 +21,44 @@ import "./prompt_panel.js";
   var PKG = "comfyui-xwide-prompt-helper";
   var I18N = globalThis.XWidePromptI18n;
   var Panel = globalThis.XWidePromptPanel;
-  var PLUGIN_VERSION = "1.0.4";
+  var PLUGIN_VERSION = "1.0.5";
+
+  /**
+   * 扩展在 ComfyUI 里的静态路由名（= custom_nodes 下的**目录名**）。
+   *
+   * PKG 只是打包名 / 兜底值。目录名用户随时可能改：1.0.4 装在真机上时，
+   * 目录就被改名成了 `comfyui-xwide-prompt-input-helper`，于是
+   * `/extensions/comfyui-xwide-prompt-helper/logo_xwide.png` 直接 404
+   * —— logo 只好走兜底链、控制台还留一堆 404。所以这里从**模块自己的 URL**
+   * 反推路由名（本文件永远是 `<路由>/js/prompt_helper.js`）。
+   *
+   * 用 `import.meta.url` 而不是 `import.meta` 本体：写成本对象字面量属性后
+   * 就不是 import.meta 语法了，Node 把 .js 当 CommonJS 解析时不会当场语法错误，
+   * 只是取到 undefined、自动退回 PKG。仓库里同时放了 `"type": "module"` 的
+   * package.json，所以正常情况这条路一定拿得到。
+   */
+  /**
+   * 从模块自己的 URL 里反推**路由名**（纯函数，方便直接测各种 URL 形状）。
+   *
+   * 本文件的 URL 永远是 `<路由>/js/prompt_helper.js`，所以取 `/js/` 上面那一级目录
+   * 即可。不用正则从中间截：`/web/` 在仓库自己的测试路径里也会出现，会截错。
+   */
+  function routeNameFromUrl(url) {
+    var at = String(url || "").lastIndexOf("/js/");
+    if (at < 0) return PKG;
+    var parts = String(url).slice(0, at).split("/");
+    return (parts.length >= 2 ? parts[parts.length - 1] : "") || PKG;
+  }
+
+  var ROUTE = (function () {
+    var url = "";
+    try {
+      url = String(import.meta.url || "");
+    } catch (err) {
+      url = "";
+    }
+    return routeNameFromUrl(url);
+  })();
 
   // 作者信息 / 链接：跟 X-WIDE 其它插件保持一致（logo 也是同一张横版图）。
   // 用户拍板（1.0.4）：信息页上的「作者与链接」**只留两个** —— GitHub 仓库与 B 站，
@@ -30,9 +67,6 @@ import "./prompt_panel.js";
   var LOGO_FILE = "logo_xwide.png";
   var LOGO_ICON_FILE = "logo_xwide_icon.png";
   var REPO_URL = "https://github.com/XWIDE/comfyui-xwide-prompt-input-helper";
-  var LOGO_FALLBACK = "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/" + LOGO_FILE;
-  var LOGO_ICON_FALLBACK =
-    "https://raw.githubusercontent.com/XWIDE/comfyui-xwide-prompt-input-helper/main/web/" + LOGO_ICON_FILE;
   var LICENSE_URL = REPO_URL + "/blob/main/LICENSE";
   var LINKS = [
     { key: "linkRepo", url: REPO_URL },
@@ -106,16 +140,26 @@ import "./prompt_panel.js";
    * `import()` 它的 —— 仓库里没有 "type": "module"，.js 会被当成 CommonJS 解析，
    * `import.meta` 在那儿是**语法错误**，整个测试文件都会跑不起来。
    * 所以改成按"扩展路由"拼：ComfyUI 把 web/ 挂在 /extensions/<插件目录名>/ 上。
+   *
+   * 地址一律只从**插件自己的静态目录**取，绝不写 CDN / raw 之类的外部兜底：
+   * 1.0.4 被 Comfy Registry 的安全扫描判成 `contains_blacklisted_url` 卡在上架审查，
+   * 就是因为在源码里硬写了外部图片站的完整地址（见 CHANGELOG 1.0.5）。
    */
-  function logoUrl() {
+  function extAssetUrl(fileName) {
     // 真实浏览器里 baseURI 一定有；`document.URL` 是给测试桩兜底的
     // （桩里没实现 location，只挂了 URL）。
     var base = document.baseURI || (document.location && document.location.href) || document.URL || "";
     try {
-      return new URL("extensions/" + PKG + "/" + LOGO_FILE, base).href;
+      return new URL("extensions/" + ROUTE + "/" + fileName, base).href;
     } catch (err) {
-      return LOGO_FALLBACK;
+      // baseURI 都解析不了时，退回根相对的扩展路径；路径段照样分开拼，
+      // 源码里不留任何完整的绝对地址。
+      return ["", "extensions", ROUTE, fileName].join("/");
     }
+  }
+
+  function logoUrl() {
+    return extAssetUrl(LOGO_FILE);
   }
 
   /**
@@ -210,17 +254,18 @@ import "./prompt_panel.js";
     var img = el("img", className);
     img.alt = I18N.createTranslator(localeOf())("aboutLogoAlt");
     img.src = logoUrl();
-    // 万一把插件目录改了名（路由就变了），退回仓库里的原图；
-    // 横版那张也取不到就退方形图标，别留一个碎图标。
-    var firstFallback = fallbackUrl || LOGO_FALLBACK;
+    // 兜底也全在插件自己的静态目录里（横版 → 方形图标 → 干脆不显示），
+    // 不去外网取图：Registry 的安全扫描会把外部写死的地址判成黑名单 URL。
+    var firstFallback = fallbackUrl || extAssetUrl(LOGO_FILE);
+    var iconFallback = extAssetUrl(LOGO_ICON_FILE);
     if (typeof img.addEventListener === "function") {
       img.addEventListener("error", function () {
-        if (img.src !== firstFallback) {
+        if (img.src !== firstFallback && firstFallback !== iconFallback) {
           img.src = firstFallback;
           return;
         }
-        if (firstFallback !== LOGO_ICON_FALLBACK && img.src !== LOGO_ICON_FALLBACK) {
-          img.src = LOGO_ICON_FALLBACK;
+        if (firstFallback !== iconFallback && img.src !== iconFallback) {
+          img.src = iconFallback;
           return;
         }
         if (img.parentNode) img.parentNode.removeChild(img);
@@ -1522,6 +1567,12 @@ import "./prompt_panel.js";
     buildSettingsConfig: buildSettingsConfig,
     installSettings: installSettings,
     trapWindowApp: trapWindowApp,
+    // 给测试用：路由名与静态资源地址（目录改名那条断言靠它）
+    routeName: function () {
+      return ROUTE;
+    },
+    routeNameFromUrl: routeNameFromUrl,
+    __logoUrl: logoUrl,
     state: function () {
       return {
         registered: registered,

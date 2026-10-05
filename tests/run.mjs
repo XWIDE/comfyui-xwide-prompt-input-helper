@@ -13,7 +13,7 @@
 import { createEnv, fileUrl } from "./harness.mjs";
 import { buildSamplerChain } from "./fixtures/sampler-chain.mjs";
 import { buildUuidReceiver } from "./fixtures/uuid-receiver.mjs";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 /**
  * 结果同时写文件、也照常打印。
@@ -1779,15 +1779,48 @@ ok(!!aboutBox.querySelector(".xwph-about-brand"), "有品牌区（logo + 标题 
 
 const aboutLogo = aboutBox.querySelector(".xwph-about-logo");
 ok(!!aboutLogo, "品牌区里有 logo");
+// 路由名不写死：从插件自己的 URL 反推（见「目录改名」那一节），所以这里只验形状。
+const routeInAbout =
+  globalThis.__xwidePromptHelperInternals && globalThis.__xwidePromptHelperInternals.routeName
+    ? globalThis.__xwidePromptHelperInternals.routeName()
+    : "";
 ok(
-  String(aboutLogo && aboutLogo.src).includes("extensions/comfyui-xwide-prompt-helper/logo_xwide.png"),
-  "logo 走的是扩展自己的静态目录（/extensions/<包名>/logo_xwide.png）"
+  String(aboutLogo && aboutLogo.src).includes(`extensions/${routeInAbout}/logo_xwide.png`),
+  `logo 走的是扩展自己的静态目录（/extensions/${routeInAbout}/logo_xwide.png）`
+);
+
+// 1.0.5 修的是 1.0.4 被 Registry 卡住的原因：源码里硬写了外部地址当图片兜底，
+// 安全扫描判成 contains_blacklisted_url（"Detects blacklisted URLs in code"）。
+// 这条断言把同一个坑钉住：前端资源里不许再出现**外部图片地址**（raw / cdn / 图床）。
+// 仓库页、B 站这类当链接给用户点的地址不算 —— 它们不是资源兜底，也不去取图。
+const shippedWebFiles = [
+  "web/js/prompt_helper.js",
+  "web/js/prompt_panel.js",
+  "web/js/bridge.js",
+  "web/js/i18n.js",
+  "web/css/prompt_panel.css",
+];
+const externalAssetHits = [];
+for (const rel of shippedWebFiles) {
+  const src = readFileSync(fileUrl("../" + rel), "utf8");
+  src.split("\n").forEach((line, i) => {
+    const code = line.trim();
+    if (code.startsWith("*") || code.startsWith("//") || code.startsWith("/*")) return;
+    if (/raw\.githubusercontent|cdn\.comfy|githubusercontent\.com|shields\.io|\.png["'`]?\s*\+?\s*"https?:/i.test(code)) {
+      externalAssetHits.push(`${rel}:${i + 1} ${code.slice(0, 90)}`);
+    }
+  });
+}
+ok(
+  externalAssetHits.length === 0,
+  "前端资源里没有写死的外部图片地址（不再触发 Registry 的 contains_blacklisted_url）",
+  externalAssetHits.length ? "命中 " + externalAssetHits.join(" | ") : ""
 );
 ok(String(aboutBox.querySelector(".xwph-about-sub").textContent).length > 0, "有一句副标题");
 
 const aboutMeta = String(aboutBox.querySelector(".xwph-about-meta").textContent || "");
-ok(aboutMeta.includes("1.0.4"), "徽章里写着版本号 1.0.4");
-eq(helper.version, "1.0.4", "插件对外报的版本号也是 1.0.4");
+ok(aboutMeta.includes("1.0.5"), "徽章里写着版本号 1.0.5");
+eq(helper.version, "1.0.5", "插件对外报的版本号也是 1.0.5");
 ok(aboutMeta.includes("GPL-3.0"), "徽章里写着协议 GPL-3.0");
 const licenseLink = aboutBox.querySelector(".xwph-about-lic");
 ok(!!licenseLink, "协议是个可点的徽章");
@@ -1891,6 +1924,56 @@ try {
 }
 ok(!storageThrew, "localStorage 不可用时不抛异常（退化成内存）");
 env.localStorage.setItem = realSetItem;
+
+// ------------------------------------------------------------------ 目录改名
+//
+// 真机上出过的事：装在 ComfyUI 里的目录被改名成 `comfyui-xwide-prompt-input-helper`，
+// 而插件当时把路由名写死成 PKG（comfyui-xwide-prompt-helper），于是
+// /extensions/comfyui-xwide-prompt-helper/logo_xwide.png 全部 404
+// —— logo 只好走兜底链、控制台一堆 404。
+//
+// 现在路由名从模块自己的 URL 反推（`<路由>/js/prompt_helper.js` 取上一级目录）。
+// 这里直接喂各种 URL 形状给那个纯函数，把「改名后拼错地址」钉死。
+section("目录改名：静态资源跟着当前目录名走，不跟着写死的 PKG");
+
+const internals = globalThis.__xwidePromptHelperInternals;
+const routeFrom = internals.routeNameFromUrl;
+
+// 真机上那份的 URL 形状：目录名和 PKG 不一样，必须取到目录名而不是 PKG。
+eq(
+  routeFrom("http://localhost:8188/extensions/comfyui-xwide-prompt-input-helper/js/prompt_helper.js"),
+  "comfyui-xwide-prompt-input-helper",
+  "改名后的目录（comfyui-xwide-prompt-input-helper）是从 URL 反推出来的"
+);
+// 仓库自己的测试路径把 web/ 也当成一层：这时路由名是最后一个目录（web）——
+// 说明 /web/ 出现在中间不会把反推带偏（老实现就是从中间正则截，才截错的）。
+eq(
+  routeFrom("file:///C:/repo/comfyui-xwide-prompt-helper/web/js/prompt_helper.js"),
+  "web",
+  "路径中间出现 /web/ 也不会把路由名带偏"
+);
+// 逗号式 host 段（file:// 三斜杠）也一样。
+eq(
+  routeFrom("file:///C:/x/comfyui-xwide-prompt-helper/web/js/prompt_helper.js"),
+  "web",
+  "file:// 三斜杠路径一样能反推"
+);
+// 拿不到 URL（CommonJS 解析、或 import.meta 为空）时退回 PKG。
+eq(routeFrom(""), "comfyui-xwide-prompt-helper", "URL 拿不到时退回 PKG");
+eq(routeFrom("http://localhost:8188/"), "comfyui-xwide-prompt-helper", "没有 /js/ 段时退回 PKG");
+
+// 实际生效的路由名与 logo 地址：harness 下 import 的是仓库里的 web/js/，
+// 所以路由名是 `web` —— 关键是它来自 URL，而不是写死的常量。
+const routeNow = internals.routeName();
+ok(routeNow.length > 0, `当前生效的路由名来自 URL（${routeNow}）`);
+ok(
+  String(internals.__logoUrl()).includes(`/extensions/${routeNow}/logo_xwide.png`),
+  `logo 地址按当前路由名拼（/extensions/${routeNow}/logo_xwide.png）`
+);
+ok(
+  !String(internals.__logoUrl()).includes("/extensions/comfyui-xwide-prompt-helper/"),
+  "没有用写死的老目录名拼地址"
+);
 
 // ------------------------------------------------------------------ 结果
 
