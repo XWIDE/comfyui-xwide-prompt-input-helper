@@ -1177,7 +1177,11 @@ const pairedNegative = helper.describeTarget("negative");
 eq(pairedNegative.source, "pair", "点着正向框按 N：同样走配对");
 eq(pairedNegative.nodeId, 92, "配对给出的是反向框");
 
-// 指错边的旧绑定必须**自己烂掉**，不能留着下次继续毒。
+// 指错边的旧绑定**这一次绝不能用**（不能把正向写进反向框）。
+// 2026-10 改：以前是当场把它从存储里删掉 —— 判据偶发失灵一次（第三方节点走两步线
+// 就认不出角色）就把用户锁好的目标抹了，下一次按 N 连记忆都没得用，表现成
+// 「有的时候填入不了负向提示词」。现在是**这次不用、绑定留着**：角色每次都现算，
+// 判据恢复的下一秒它自己就能重新生效，不需要用户重新点一次。
 // 这一段刻意只造反向那一个框：正向框不存在，于是 ①②③ 都无从下手，
 // 目标只能靠 ④ 绑定 —— 而那条绑定指着的是角色明确为 negative 的框。
 // 老版本会照用不误（把正向内容写进反向框），新版本认得出它是污染，删掉并继续往下找。
@@ -1197,8 +1201,8 @@ const poisoned = helper.describeTarget("positive");
 ok(poisoned.nodeId !== 92, "被污染的绑定不会把正向写到反向框上");
 const poisonedKey = "bind." + onlyNegPrefix + ".positive";
 ok(
-  !Array.from(env.storage.keys()).some((k) => String(k).includes(poisonedKey)),
-  "这条指错边的绑定已经被删掉了（不会留着下次继续毒）",
+  Array.from(env.storage.keys()).some((k) => String(k).includes(poisonedKey)),
+  "这条指错边的绑定**留着**（判据偶发失灵不再抹掉用户锁好的目标），只是这次没被用上",
 );
 
 // 收尾：把当前工作流交还原图，并把这一节留下的绑定清干净。
@@ -1289,8 +1293,9 @@ ok(!buttons.some((b) => b.textContent === "词库"), "「词库」按钮已经�
 typeInto(area2, "按钮测试内容");
 await flush();
 
-// 用户后来追加的要求：「有时要清空负面词」→ 他拍板的是**双清**：
-// 面板清空，写入目标那个框也一起写成空（"这个框我不要了"）。
+// 2026-10-20 用户拍板（真机反馈 m00308）：「清空」**永远只清面板**，绝不动画布上那个框。
+// 旧版是「双清」（面板 + 目标框一起写空）—— 用户点一次就丢一次自己写的提示词，
+// 所以契约改成：面板清空，画布上那个框里的字**一个字都不许动**。
 const clearTarget = helper.describeTarget("positive");
 ok(clearTarget && clearTarget.found, "（准备）清空前解析得到写入目标");
 ok(
@@ -1301,7 +1306,7 @@ ok(
 env.dispatch(clearBtn, "click", { button: 0 });
 await flush();
 eq(area2.value, "", "清空按钮清掉了面板内容");
-eq(targetText("positive"), "", "写入目标那个框也被一起清空了（双清）");
+eq(targetText("positive"), "画布上不想要的内容", "画布上那个框一个字都没动（清空只清面板）");
 
 const clearAgain = helper.describeTarget("positive");
 eq(clearAgain.nodeId, clearTarget.nodeId, "清空只清内容，不会把写入目标换掉");
@@ -1819,8 +1824,8 @@ ok(
 ok(String(aboutBox.querySelector(".xwph-about-sub").textContent).length > 0, "有一句副标题");
 
 const aboutMeta = String(aboutBox.querySelector(".xwph-about-meta").textContent || "");
-ok(aboutMeta.includes("1.0.6"), "徽章里写着版本号 1.0.6");
-eq(helper.version, "1.0.6", "插件对外报的版本号也是 1.0.6");
+ok(aboutMeta.includes("1.0.7"), "徽章里写着版本号 1.0.7");
+eq(helper.version, "1.0.7", "插件对外报的版本号也是 1.0.7");
 ok(aboutMeta.includes("GPL-3.0"), "徽章里写着协议 GPL-3.0");
 const licenseLink = aboutBox.querySelector(".xwph-about-lic");
 ok(!!licenseLink, "协议是个可点的徽章");
@@ -1994,6 +1999,59 @@ ok(
   !String(styleLink && styleLink.href).includes("/extensions/comfyui-xwide-prompt-helper/"),
   "样式表地址没有用写死的老目录名"
 );
+
+// ------------------------------------------- 单行输入框不是提示词框（2026-10 用户报「P/N 写到别的节点」）
+
+section("单行输入框不是提示词框：不当目标、不写入");
+
+// 真机上的「保存图片」就是这种：整个节点只有一个单行 STRING 控件（文件名前缀）。
+const nodeSingle = env.addNode({
+  id: 55,
+  type: "SaveImage",
+  title: "保存图片",
+  widgets: [{ name: "filename_prefix", displayName: "filename_prefix", value: "ComfyUI", multiline: false }],
+});
+// 同一个节点上既有单行字段又有真提示词框时，必须挑真框（单行字段刻意排在前面，让它先撞上）。
+const nodeMixed = env.addNode({
+  id: 56,
+  type: "SomeCustomNode",
+  title: "带单行字段的节点",
+  widgets: [
+    { name: "filename_prefix", displayName: "filename_prefix", value: "keepme", multiline: false },
+    { name: "prompt", displayName: "prompt", value: "真正的提示词" },
+  ],
+});
+
+env.storage.clear();
+manager._lastInteracted.element = null;
+manager._lastInteracted.time = 0;
+env.clearFocus();
+env.select(nodeSingle);
+const singleOnly = helper.describeTarget("positive");
+ok(!singleOnly.found, "只选中「保存图片」这种单行框时解析不到目标（旧版会把它当提示词框）");
+eq(nodeSingle.widgets[0].value, "ComfyUI", "文件名前缀一个字都没动");
+
+env.select(nodeMixed);
+const mixed = helper.describeTarget("positive");
+ok(mixed.found && mixed.nodeId === 56, "选中那个节点时认出来的就是它");
+eq(mixed.field, "prompt", "认的是多行提示词框，不是排在前面的单行字段");
+eq(nodeMixed.widgets[0].value, "keepme", "单行字段没有被当成目标写进去");
+
+// 反向：点过一个「正反认不出来」的多行框之后，按 N 也要能填进去。
+// 2026-10 改：以前第 ⑧ 档只对正向放行，反向就地放弃 → 真机表现是「有的时候填入不了负向提示词」。
+env.storage.clear();
+env.clearFocus();
+env.select();
+env.dispatch(nodeMixed._textareas[0], "pointerdown", { button: 0 });
+const negAfterClick = helper.describeTarget("negative");
+ok(negAfterClick.found && negAfterClick.nodeId === 56, "点过认不出正反的多行框后，按 N 解析得到目标");
+eq(negAfterClick.field, "prompt", "反向也写进那个多行框");
+
+// 收尾：把这一节留下的绑定/交互记忆清干净，别污染后面的小节。
+env.useGraph(env.graph);
+env.storage.clear();
+manager._lastInteracted.element = null;
+manager._lastInteracted.time = 0;
 
 // ------------------------------------------------------------------ 结果
 

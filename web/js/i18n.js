@@ -31,8 +31,9 @@
       apply: "应用并关闭",
       applyOnly: "应用",
       clear: "清空",
-      clearHint: "清空面板，并把写入目标那个框也一起清空（这个框我不要了）",
-      clearedPanelOnly: "面板已清空；这次没找到写入目标，所以画布上的框没动。",
+      clearHint: "只清空面板；画布上那个框一个字都不会动（要清它请在框里自己删）",
+      clearedPanelOnly: "已清空面板。画布上的框没有动 —— 要清它请在框里自己删。",
+      clearNotPromptBox: "那个目标不是提示词框（它是单行小输入框），所以只清了面板，没动画布。",
       copy: "复制",
       copyToOther: "送去对面",
       copyToNeg: "→ 负向",
@@ -66,6 +67,7 @@
       viaLink: "依据：线落在接收节点的这个入口上",
       viaOwnPort: "依据：这个节点自己带着这个入口",
       viaAssumedPositive: "这个框的正反认不出来，按正向处理",
+      viaAssumedClicked: "正反都认不出来：写进你刚点过的那个框",
       pickOne: "这张图里还没定过写哪个框 —— 点一下要写的那个：",
       pickMulti: "这张图里有好几处提示词框（比如分了两次采样）—— 点一下你要写的那一个，选完就记住：",
       pickConnectsTo: "连到 {where}",
@@ -192,7 +194,7 @@
         "· 按 P 打开正向提示词框、按 N 打开反向；也可以点一下画布上那个提示词框，或选中节点之后再按。\n" +
         "· 写完按回车 = 应用并关闭；面板里 Shift+回车 = 换行；Esc = 关闭。\n" +
         "· 面板上「写入目标」那一行显示的是这条提示词会写到哪个节点上。\n" +
-        "· 「清空」＝ 面板清空 + 写入目标那个框也一起清空（这个框我不要了）。\n" +
+        "· 「清空」＝ 只清空面板，画布上那个框一个字都不动（要清它请在框里自己删）。\n" +
         "· 面板开着时，你在页面里选一段字按 Ctrl+C，它就自己收进面板；在别处复制的，" +
         "切回页面时也会自己收进来（要按 Ctrl+V 也行）。这一条可以用面板页脚的「自动粘贴」勾选框关掉。\n" +
         "· 面板内部的复制用 Ctrl+C 也行：内容不会自己喂给自己。\n" +
@@ -226,8 +228,9 @@
       apply: "Apply and close",
       applyOnly: "Apply",
       clear: "Clear",
-      clearHint: "Clear the panel and the target box on the canvas as well (this box is no longer wanted)",
-      clearedPanelOnly: "Panel cleared; no target was found this time, so nothing on the canvas changed.",
+      clearHint: "Clears the panel only — the box on the canvas is never touched (clear it there by hand)",
+      clearedPanelOnly: "Panel cleared. Nothing on the canvas was touched — clear a canvas box by hand.",
+      clearNotPromptBox: "That target is not a prompt box (it's a single-line input), so only the panel was cleared — the canvas was left alone.",
       copy: "Copy",
       copyToOther: "Send to the other",
       copyToNeg: "→ Negative",
@@ -262,6 +265,7 @@
       viaLink: "Evidence: the wire lands on this input of the receiving node",
       viaOwnPort: "Evidence: this node declares that input itself",
       viaAssumedPositive: "This box's role cannot be told; treated as positive",
+      viaAssumedClicked: "Neither role can be told: writing into the box you just clicked",
       pickOne: "This workflow has no box set for this yet — click the one you want to write into:",
       pickMulti:
         "This workflow has several prompt boxes (e.g. two sampling stages) — click the one you want; it is remembered after that:",
@@ -385,7 +389,7 @@
         "canvas first, or select the node, then press the key.\n" +
         "· Enter applies and closes; Shift+Enter inserts a new line inside the panel; Esc closes.\n" +
         "· The “writing to” line in the panel shows which node the text will be written to.\n" +
-        "· “Clear” empties the panel and the target box on the canvas (that box is no longer wanted).\n" +
+        "· “Clear” empties the panel only; the box on the canvas is never touched (clear it there by hand).\n" +
         "· With a panel open, select text anywhere in the page and press Ctrl+C — it lands in the panel; " +
         "text copied elsewhere is taken in when you switch back to the page (Ctrl+V works too). " +
         "The “auto-paste” checkbox in the panel footer switches this off.\n" +

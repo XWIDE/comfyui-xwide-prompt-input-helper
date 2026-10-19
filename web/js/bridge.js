@@ -159,6 +159,26 @@
     return out;
   }
 
+  /**
+   * 「这个控件到底能不能当提示词框」—— 所有**自动**挑框的路都必须先过这道闸。
+   *
+   * 为什么必须有它（2026-10 用户报的两条真机毛病）：选中一个节点按 P/N，结果把提示词
+   * 写进了「保存图片」的文件名里；按 N 清除时，又把你原来写在里面的文字清掉了。
+   * 病根是 `listTextWidgets` 只看 widget.type，而 `string` 类型的单行小输入框
+   * （文件名前缀、种子、连接 ID…）也是“文本控件”，于是兜底档把它们当成了提示词框。
+   *
+   * 判据跟 `listPromptBoxes` 完全一致：**只认有真实 DOM 元素的多行大文本框**
+   * （见那个函数上的注释：“单行的文件名、种子这类不算提示词框”）。
+   * 以前这条闸只在候选列表那边生效，选节点那两条路没走 —— 现在统一到这儿。
+   */
+  function isPromptBox(node, widget) {
+    if (!node || !widget) return false;
+    if (!isTextWidget(widget)) return false;
+    var el = getWidgetElement(widget);
+    if (!el) return false;
+    return String(el.tagName || "").toUpperCase() === "TEXTAREA";
+  }
+
   /** 从任意 DOM 元素往上找到它所属的 node（用于 mousedown 捕获）。 */
   function findNodeByElement(el) {
     if (!isElement(el)) return null;
@@ -1023,6 +1043,7 @@
     widgetLabel: widgetLabel,
     inspectTarget: inspectTarget,
     listTextWidgets: listTextWidgets,
+    isPromptBox: isPromptBox,
     findNodeByElement: findNodeByElement,
     findWidgetByElement: findWidgetByElement,
     markDirty: markDirty,

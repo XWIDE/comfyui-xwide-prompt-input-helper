@@ -915,6 +915,7 @@
       if (via === "link") return t("viaLink");
       if (via === "own-port") return t("viaOwnPort");
       if (via === "fallback-positive") return t("viaAssumedPositive");
+      if (via === "fallback-unrole") return t("viaAssumedClicked");
       return "";
     }
 
@@ -986,9 +987,14 @@
      * 刻意**不**在节点上有多个框、名字又都没写明时瞎挑：那是用户说的"非常少"的情形，
      * 宁可认不出来（面板会如实说没目标），也不要写错框。
      */
-    function fieldOfNodeForRole(node, kind) {
-      var widgets = Bridge.listTextWidgets(node);
-      if (!widgets.length) return null;
+      function fieldOfNodeForRole(node, kind) {
+        // 先过闸：只把**真·多行提示词框**当候选。单行小输入框（「保存图片」的文件名前缀、
+        // 种子、连接 ID…）以前会顺着下面第 ②/⑥ 档被当成"唯一能写的那个框"，于是选中那
+        // 个节点按 P/N 就把提示词写进文件名里、按 N 清除还会把你原来的文字清掉。
+        var widgets = Bridge.listTextWidgets(node).filter(function (item) {
+          return Bridge.isPromptBox(node, item.widget);
+        });
+        if (!widgets.length) return null;
       // 名字写明了正反的，按名字认（跟按连线认用的是同一份词表）。
       for (var i = 0; i < widgets.length; i++) {
         if (Bridge.roleFromPortName(widgets[i].widget && widgets[i].widget.name) === kind) return widgets[i];
@@ -1023,7 +1029,12 @@
         if (!node) continue;
         var pick = fieldOfNodeForRole(node, kind);
         if (!pick && anyWidget) {
-          var widgets = Bridge.listTextWidgets(node);
+          // 这一档是"上面都没命中"的兜底，所以要求更宽：**但不能更松** ——
+          // 同样只认过闸的多行提示词框。以前这里是"该节点上第一个文本控件"，
+          // 于是选中「保存图片」按 N/P 就把提示词写进 filename_prefix。
+          var widgets = Bridge.listTextWidgets(node).filter(function (item) {
+            return Bridge.isPromptBox(node, item.widget);
+          });
           if (widgets.length) pick = widgets[0];
         }
         if (pick && pick.widget) {
@@ -1062,14 +1073,15 @@
      *      甚至换了工作流之后，插件仍抱着旧目标写 —— 真机上表现在
      *      「选择了正向，弹出来的却是反向的框，点应用也填进反向那个框里面」，
      *      而面板上显示的 `#520 … 风格提示词选择器 · negative` 其实是个**已停用**的节点。
-     *      还多一道闸门：绑定指向的框如果角色是另一边，那是**污染不是依据**，直接删掉。
+     *      还多一道闸门：绑定指向的框如果角色是另一边，那是**污染不是依据**，这次不用它（2026-10 改：以前这里是**直接删掉这条记忆**——判据偶发失灵一次就把用户锁好的目标抹了，下一次连记忆都没得用，表现成「有的时候填入不了负向提示词」。）
      *   ⑤ 用户指过的框（`lastInteracted` / 当前焦点元素），同样要角色不冲突。
-     *   ⑥ 选中的节点（放宽成"这个节点上第一个文本控件"的兜底），同样要角色不冲突。
+     *   ⑥ 选中的节点（放宽成"这个节点上第一个**提示词框**"的兜底，必须过 `Bridge.isPromptBox`），
+      *      同样要角色不冲突 —— 单行输入框（「保存图片」的文件名前缀、种子）不算提示词框。
      *   ⑦ 绑定机制之前的旧记忆键。
      *   ⑧ 全都认不出来时：**正向**用用户刚点过的那个框（用户 m02771 拍板：「就当读不到
      *      正反时，只用正向向里填，就行。大部份这个时候可能会把正负提示词写一起，
      *      或是提示词里，没有区分正负，就没有正反之分。他就是提行词」）；
-     *      **反向不猜** —— 摊开候选让用户点一次，因为把反向内容写进正向框代价太大。
+     *      **反向也用刚点过的那个框**（2026-10 用户报「有的时候填入不了负向提示词」后放行）—— 前提是这个框过 `Bridge.isPromptBox`（有真实 DOM 的多行大框），而且它来自用户鼠标点的那一个，目标条会明写写进哪个节点。认不出正反、又没点过提示词框 → 仍然摊开候选，绝不拿猜的去写。
      *   ⑨ 摊开候选（或明说没有目标）：绝不拿"猜的"去写。
      *
      * **贯穿全部档位的一条硬规矩（2026-10 用户 m05635 报"正反会认错"之后加的）**：
@@ -1222,8 +1234,13 @@
       if (bound && bound.target) {
         var boundRole = roleOfNode(bound.node, bound.widget);
         if (boundRole && boundRole !== kind) {
-          storage.remove(bindingStorageKey(kind));
-          debugLog("binding 指向了另一侧的框，删掉这条记忆", kind, "-> #" + bound.node.id, boundRole);
+          /**
+           * 角色认出来是另一边：这条记忆**不能当依据**。以前这里直接 `storage.remove`
+           * 把它删了 —— 于是"认角色"偶发失灵一次（第三方节点走两步线就认不出），
+           * 就把用户锁好的目标抹掉了；下一次按 N 连记忆都没得用，表现成
+           * 「有的时候填入不了负向提示词」。现在只是这次不用它，**绑定留着**。
+           */
+          debugLog("binding 角色是另一边，这次不用（保留绑定）", kind, "-> #" + bound.node.id, boundRole);
         } else {
           if (boundRole) bound.target.linkLabel = formatLinkLabel(bound.node, boundRole);
           bound.target.role = boundRole || "";
@@ -1263,11 +1280,25 @@
       //      只用正向向里填，就行。大部份这个时候可能会把正负提示词写一起，或是提示词里，
       //      没有区分正负，就没有正反之分。他就是提行词。」）：
       //      **正向**就用用户刚点过/光标所在的那个框；
-      //      **反向**不猜 —— 摊开候选让他点一次，因为把反向内容写进正向框代价太大。
+      //      **反向**同样用刚点过的框（前提：过 `Bridge.isPromptBox`）。以前反向在这一档被排除，真机表现就是「有的时候填入不了负向提示词」。
       var unrole = unroleBox();
-      if (unrole && kind === "positive") {
-        unrole.target.roleVia = "fallback-positive";
-        return { target: unrole.target, candidates: [], source: "assumed-positive" };
+      if (unrole && Bridge.isPromptBox(unrole.node, unrole.widget)) {
+        /**
+         * 认不出正反时，就用**用户刚点过的那个框**。正向这一条是用户 m02771 拍板的
+         * （「就当读不到正反时，只用正向向里填」）；反向以前被刻意排除，怕把反向内容
+         * 写进正向框，代价太大 —— 真机上的表现是「有的时候填入不了负向提示词」。
+         *
+         * 现在反向也放行，因为那条顾虑已经被两道闸顶住了：这个框来自
+         * `recentlyClickedPromptBox`（用户鼠标点的那一个，不是插件挑的），而且必须过
+         * `Bridge.isPromptBox`（有真实 DOM 元素的多行大框）；目标条上明写着要写进哪个
+         * 节点，依据行会说这是"按你刚点的那个框"。
+         */
+        unrole.target.roleVia = kind === "positive" ? "fallback-positive" : "fallback-unrole";
+        return {
+          target: unrole.target,
+          candidates: [],
+          source: kind === "positive" ? "assumed-positive" : "assumed-unrole",
+        };
       }
 
       // ⑧ 摊开候选（或明说没有目标）：绝不拿"猜的"去写。
@@ -1951,39 +1982,33 @@
        * 理由很直白：清空这个动作的意思就是"这个框我不要了"。只清面板等于什么都没做 ——
        * 一按「应用并关闭」又把老内容原样写回去了，用户看到的还是那句提示词。
        *
-       * 三种情况要分开说清楚（用户最烦的就是"点了没反应"）：
-       *   ① 有目标：面板 + 目标框一起清，报「已清空」；
-       *   ② 目标找不到 / 目标跑掉了：只清面板，并如实说"只清了面板"；
-       *   ③ 面板和目标框本来就是空的：什么都不做，也不出声。
+        * 「清空」**永远只清面板，绝不动画布上那个框**（2026-10-20 用户拍板，真机反馈 m00308）：
+        *   ① 面板里有字：清掉面板，并报一句「已清空面板」；
+        *   ② 面板本来就是空的：什么都不做，也不出声（旧版这时会静默清掉画布上的框）；
+        *   ③ 任何情况下都不写画布 —— 画布上的字要清，请在节点自己的框里删。
        *
        * 注意这里**不**清 `state.target`、也**不**动绑定：清的是内容，不是"这个框归谁"。
        * 清完接着按 P 还是写回同一个框（那正是用户要的）。
        */
-      function doClear() {
-        var hadText = !!textarea.value;
-        if (hadText) commitText("");
-
-        var target = state.target;
-        if (!target || targetIsGone(target)) {
-          if (hadText) toast(t("clearedPanelOnly"), "warn");
-          return;
-        }
-
-        var boxHadText = !!Bridge.getWidgetValue(target.widget);
-        if (!boxHadText) {
-          if (hadText) toast(t("cleared"));
-          return;
-        }
-
-        var result = Bridge.setWidgetText(target, "", { app: app });
-        if (!result.verified) {
-          debugLog("clear not verified", { steps: result.steps, actual: result.value });
-        }
-        // 面板内容已经跟着目标框一起没了，草稿再留着就会在下次打开时"复活"这句话。
-        state.draftCleared = true;
-        clearDraft();
-        toast(t("cleared"));
-      }
+       function doClear() {
+         /**
+          * 「清空」**永远只清面板** —— 用户拍板于 2026-10-20（真机反馈 m00308）。
+          *
+          * 旧版是「双清」：面板清空，写入目标那个框也一起写成空。听起来省事，实际上是一次
+          * 破坏性写入 —— 面板开着时点一下清空，画布上自己写的提示词就没了，找不回来。
+          * 所以这里不再有任何 Bridge.setWidgetText：画布上的字要清，请在框里自己删。
+          *
+          * 两条老规矩保留：
+          *   ① 面板本来就是空的：什么都不做，也不出声；
+          *   ② 清完不动 state.target、不动绑定 —— 接着按 P 还是写回同一个框。
+          */
+         var hadText = !!textarea.value;
+         if (!hadText) return;
+         commitText("");
+         state.draftCleared = true;
+         clearDraft();
+         toast(t("clearedPanelOnly"));
+       }
 
       /**
        * 原来的「粘贴」按钮（`doPaste`）连同 `insertTextAtCursor` 已经删掉。
@@ -3386,10 +3411,11 @@
         trace.step4_selectedNodes = "err";
       }
       trace.step5_memory = resolveFromMemory(kind) ? "有" : "没有";
-      // 第 ⑦ 条：认不出角色时只对"正向"生效的兜底 —— 探针要能看出它有没有被用上。
+      // 第 ⑧ 条：认不出角色时用"用户刚点过的框"，正反都用（2026-10 改）—— 探针要能看出
+      // 它有没有被用上。键名 step6_assumesPositive 留着不改，老探针脚本还在读它。
       var unrole = unroleBox();
       trace.step6_unroleBox = unrole && unrole.target ? unrole.target.nodeId : null;
-      trace.step6_assumesPositive = !!unrole && kind === "positive";
+      trace.step6_assumesPositive = !!unrole && Bridge.isPromptBox(unrole.node, unrole.widget);
       return trace;
     }
 

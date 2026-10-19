@@ -4,7 +4,7 @@
 
 [English](README.en.md) | **中文**
 
-![version](https://img.shields.io/badge/version-1.0.6-blue)
+![version](https://img.shields.io/badge/version-1.0.7-blue)
 ![license](https://img.shields.io/badge/license-GPL--3.0-green)
 ![comfyui](https://img.shields.io/badge/ComfyUI%20frontend-%E2%89%A5%201.3-blue)
 
@@ -61,8 +61,8 @@ ComfyUI 原生的多行文本框有几个让人难受的地方：
 浮窗里的按钮：
 
 - **应用并关闭** —— 写回目标控件。写不进去会明确告诉你原因，**绝不会乱写**。
-- **清空** —— 面板清空，**写入目标那个框也一起清空**（"这个框我不要了"）。框本来就空时
-  只清面板；目标已经不在了会明说。清空**不会**改写入目标。
+- **清空** —— **只清空面板，画布上那个框一个字都不动**。面板本来就是空的，点它什么都不做。
+  想清掉画布上的提示词，请在节点自己的框里删。（1.0.7 起；以前是「双清」，点一次丢一次自己写的内容。）
 - **自动粘贴**（勾选框，默认开）—— 见下面一段。
 - **→ 负向 / → 正向** —— 把当前内容整段送到对面那个框，方便一处写好、拆成正向和反向。
 

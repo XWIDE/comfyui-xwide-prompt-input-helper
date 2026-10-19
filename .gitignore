@@ -18,3 +18,9 @@ tests/last-progress.txt
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 排障期的备份与探针（只在本机有用，不进仓库）
+*.bak-*
+_xwph_*
+__diag*.html
+__diag*.js
