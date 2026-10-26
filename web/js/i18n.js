@@ -130,7 +130,11 @@
       settingGroupPage: "面板设置",
       settingGroupInfo: "插件信息",
       settingPageInfo: "插件信息",
-      settingPageInfoShort: "插件名 / 版本 / 作者 / 链接 / 用法，还有下面那几张卡片。",
+      settingPageInfoShort: "插件名 / 版本 / 作者 / 链接，加一个打开使用帮助的按钮。",
+      // 设置页那个小按钮（用户 m00586：「帮助文档它只需要一个小的按钮」）
+      settingHelpBtn: "使用帮助",
+      settingHelpTip: "打开使用帮助：我的信息、快捷键全表（含 Shift + Enter 换行）、使用说明、作者与链接。",
+      settingEnableLabel: "开启",
       // —— 自动粘贴（和面板页脚那个勾选框是同一个开关）
       // 注意：设置行上的 tooltip **只留一行**。以前这里是一整段长文，真机上会变成
       // 一个挂在那儿不消失的大气泡（用户 1.0.4 的截图）；完整说明在信息页的「用法」里。
@@ -139,13 +143,13 @@
       settingGroupAutoPaste: "自动粘贴",
       // —— 文字大小（只放大输入框里的正文；面板标题栏的 A- / A+ 与 Ctrl+滚轮也是改这个）
       settingFont: "文字大小",
-      settingFontShort: "只调输入框里正文的大小；面板本身不变大。也可以 Ctrl + 滚轮实时调。",
+      settingFontShort: "只调输入框里正文的大小；面板本身、画布和别的界面都不跟着变。",
       settingGroupFont: "文字大小",
       fontSmaller: "缩小文字",
       fontBigger: "放大文字",
       fontReset: "恢复默认大小",
       fontScaleToast: "文字大小 {percent}%",
-      fontNotice: "只影响输入框里的正文。除了这里，还能在面板里用 Ctrl + 滚轮实时调，或用标题栏的 A- / A+（最小 70%，最大 400%）。",
+      fontNotice: "只影响输入框里的正文。改它的地方只有两处：这里，和面板标题栏的 A- / A+（最小 70%，最大 400%）。滚轮不调字号 —— ComfyUI 自己把 Ctrl + 滚轮用作画布缩放，我们不抢它（1.0.9 起，用户点名「要的就是那个加减按钮的效果」）。",
       // —— 快捷键检查（点一下方框，按下组合键，下面立刻说有没有冲突）
       settingGroupShortcutCheck: "快捷键",
       // 设置行的名字要短：真机截图里那一行长到换行，左边栏全被它占了。
@@ -154,7 +158,7 @@
       settingShortcutCheckNote:
         "点一下某个方框，然后直接按下你想用的组合键即可。\n" +
         "下面每个键各有一行状态：✓ 可用 / ! 容易误触 / ✕ 冲突。\n" +
-        "按 Delete 或 Backspace 可以把这个键关掉（关掉后那个面板就只能用菜单打开）。",
+        "按两次 Delete 或 Backspace 才会把这个键关掉（关掉后那个面板就只能用菜单打开）。",
       shortcutCapture: "点这里改",
       shortcutPressKey: "按下组合键…",
       shortcutOk: "✓ 这个组合可用，未发现冲突。",
@@ -169,14 +173,28 @@
       shortcutHintHead: "当前：",
       shortcutReset: "恢复默认按键",
       shortcutCleared: "已关掉这个键（面板还能从右键菜单打开）。",
+      shortcutOffConfirm: "再按一次 Delete / Backspace 就关掉这个键（按两下是防手滑）。",
 
       // —— 信息页（关于）：品牌 + 作者与链接 + 用法 + 快捷键
       aboutVersionLabel: "版本",
       aboutAuthorLabel: "作者",
       aboutLinksLabel: "作者与链接",
-      aboutUsageTitle: "用法",
+      aboutUsageTitle: "使用说明",
       aboutKeysTitle: "快捷键",
       aboutKeysNote: "在 ComfyUI 设置面板（左下角齿轮）→ X-WIDE 提示词输入插件 里可以随时改，也可以关掉。",
+      // —— 帮助文档（面板标题栏齿轮打开的就是这一页）
+      helpTitle: "使用帮助",
+      helpKeysIntro: "面板打开以后，就用这些键：",
+      helpKeyEnter: "应用并关闭",
+      helpKeyShiftEnter: "换行（多行提示词必须用它）",
+      helpKeyEsc: "关闭面板",
+      helpKeyFontBtns: "A+ / A-",
+      helpKeyFontNote: "放大 / 缩小框里的正文；只有字变大，画布和别的界面都不跟着缩放",
+      helpKeySwap: "→ 负向 / → 正向",
+      helpKeySwapNote: "两个面板互相切过去，不用先关再开",
+      helpKeyOffTwice: "连按两次 Delete / Backspace",
+      helpKeyOffTwiceNote: "把 P / N 这个键关掉（第一下只提示，防手滑）",
+      helpSettingsNote: "P / N 想换成别的键：ComfyUI 左下角齿轮 → 设置 → X-WIDE 提示词输入插件 → 快捷键那一行，点一下方框再按下你想用的键。",
       aboutLicenseName: "GPL-3.0",
       aboutLicenseTip: "以 GPL-3.0 授权发布，完整许可文本见仓库里的 LICENSE 文件",
       aboutSub: "穿透式正 / 反提示词浮窗 · 不新增节点，不改任何现有流程",
@@ -198,6 +216,9 @@
         "· 面板开着时，你在页面里选一段字按 Ctrl+C，它就自己收进面板；在别处复制的，" +
         "切回页面时也会自己收进来（要按 Ctrl+V 也行）。这一条可以用面板页脚的「自动粘贴」勾选框关掉。\n" +
         "· 面板内部的复制用 Ctrl+C 也行：内容不会自己喂给自己。\n" +
+        "· 字太小就调大小：面板标题栏的 A- / A+，和设置里「文字大小」那一行，" +
+        "两处改的是同一个值（70% ~ 400%，只放大框里的正文；面板、画布和别的界面都不跟着变）。" +
+        "滚轮不调字号 —— Ctrl + 滚轮是 ComfyUI 自己的画布缩放，我们不抢。\n" +
         "· 它不新增节点、也不改任何现有节点，工作流零改动。",
 
       menuGroup: "提示词插件",
@@ -330,26 +351,30 @@
       settingGroupPage: "Panel settings",
       settingGroupInfo: "plugin info",
       settingPageInfo: "Plugin info",
-      settingPageInfoShort: "Name, version, author, links and usage — plus the cards below.",
+      settingPageInfoShort: "Name, version, author and links — plus a small button that opens the help.",
+      // the small button on the settings page (user m00586: "the help doc only needs a small button")
+      settingHelpBtn: "Help",
+      settingHelpTip: "Open the help: about this plugin, every shortcut (including Shift + Enter for a newline), usage and links.",
+      settingEnableLabel: "On",
       settingAutoPaste: "Auto-paste: copy elsewhere, and it is taken in when you return to the page",
       settingAutoPasteShort: "Copy elsewhere and it is taken in when you switch back; the panel footer has the same switch.",
       settingGroupAutoPaste: "auto-paste",
       // —— text size (only the prompt text inside the box; A- / A+ and Ctrl+wheel change it)
       settingFont: "Text size",
-      settingFontShort: "Sizes the prompt text inside the box only; the panel itself does not grow. Ctrl + wheel works too.",
+      settingFontShort: "Sizes the prompt text inside the box only; the panel, the canvas and the rest of the UI do not grow.",
       settingGroupFont: "text size",
       fontSmaller: "Smaller text",
       fontBigger: "Larger text",
       fontReset: "Restore the default size",
       fontScaleToast: "Text size {percent}%",
-      fontNotice: "Affects the prompt text inside the box only. Besides this row you can use Ctrl + wheel inside the panel, or the A- / A+ buttons in its header (70% to 400%).",
+      fontNotice: "Affects the prompt text inside the box only. Two places change it: this row and the A- / A+ buttons in the panel header (70% to 400%). The mouse wheel no longer sizes text — ComfyUI owns Ctrl + wheel as canvas zoom, and we do not steal it (since 1.0.9).",
       settingGroupShortcutCheck: "shortcuts",
       settingShortcutCheck: "Shortcuts",
       settingShortcutCheckShort: "Click a box, then press the keys you want; the line below says whether it is safe.",
       settingShortcutCheckNote:
         "Click one of the boxes and press the combination you want.\n" +
         "Each key gets its own status line: ✓ available / ! easy to trigger by accident / ✕ conflict.\n" +
-        "Press Delete or Backspace to switch a key off (with it off, that panel only opens from the menu).",
+        "Press Delete or Backspace twice to switch a key off (with it off, that panel only opens from the menu).",
       shortcutCapture: "click to change",
       shortcutPressKey: "press keys…",
       shortcutOk: "✓ This combination is available; no conflict found.",
@@ -364,12 +389,26 @@
       shortcutHintHead: "Current: ",
       shortcutReset: "Restore the default keys",
       shortcutCleared: "This key is now off (the panel still opens from the right-click menu).",
+      shortcutOffConfirm: "Press Delete / Backspace once more to turn this key off (twice, so an accidental press can't disable it).",
       aboutVersionLabel: "Version",
       aboutAuthorLabel: "Author",
       aboutLinksLabel: "Author & links",
       aboutUsageTitle: "How to use it",
       aboutKeysTitle: "Shortcuts",
       aboutKeysNote: "Change or switch them off any time in ComfyUI's settings panel (bottom-left gear) → X-WIDE Prompt Input Helper.",
+      // Help page (what the gear button on the panel header opens).
+      helpTitle: "Help",
+      helpKeysIntro: "Once a panel is open, these are the keys:",
+      helpKeyEnter: "Apply and close",
+      helpKeyShiftEnter: "New line (needed for multi-line prompts)",
+      helpKeyEsc: "Close the panel",
+      helpKeyFontBtns: "A+ / A-",
+      helpKeyFontNote: "Grow / shrink the text inside the box; only the text scales — the canvas and the rest of the UI do not",
+      helpKeySwap: "→ negative / → positive",
+      helpKeySwapNote: "Jump between the two panels without closing and reopening",
+      helpKeyOffTwice: "Press Delete / Backspace twice",
+      helpKeyOffTwiceNote: "Turn the P / N key off (the first press only warns, so it can't slip off by accident)",
+      helpSettingsNote: "To rebind P / N: ComfyUI's bottom-left gear → Settings → X-WIDE Prompt Input Helper → the shortcut row, click the box, then press the key you want.",
       aboutLicenseName: "GPL-3.0",
       aboutLicenseTip: "Released under GPL-3.0; the full license text is the LICENSE file in the repository",
       aboutSub: "A pass-through positive / negative prompt overlay · no new nodes, no changes to any workflow",
@@ -394,6 +433,9 @@
         "text copied elsewhere is taken in when you switch back to the page (Ctrl+V works too). " +
         "The “auto-paste” checkbox in the panel footer switches this off.\n" +
         "· Copying inside the panel with Ctrl+C is fine too: the text is not fed back into itself.\n" +
+        "· Text too small? The A- / A+ buttons in the panel header and the “text size” row in settings " +
+        "change the same value (70% to 400%; it scales the prompt text only — the panel, the canvas and " +
+        "the rest of the UI stay put). The wheel no longer sizes text: Ctrl + wheel is ComfyUI's canvas zoom.\n" +
         "· It adds no nodes and changes no existing node — your workflow stays untouched.",
 
       menuGroup: "Prompt Helper",

@@ -256,6 +256,14 @@ export function createEnv(options = {}) {
   const canvas = {
     graph,
     selected_nodes: {},
+    /**
+     * 真机上 litegraph 画布实例就有这两样（取证自前端包 settingStore-DZ2-HL-F.js）：
+     * `processMouseWheel` 第一行是 `if (!this.graph || !this.allow_dragcanvas) return;`，
+     * 缩放写的是 `this.ds.scale`。插件在面板开着时把 allow_dragcanvas 置 false，
+     * 测试据此断言「面板开着 = 画布动不了」。
+     */
+    allow_dragcanvas: true,
+    ds: { scale: 1, offset: [0, 0] },
     setDirty() {
       canvas._dirty = (canvas._dirty || 0) + 1;
     },

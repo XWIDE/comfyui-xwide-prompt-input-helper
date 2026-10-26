@@ -21,7 +21,7 @@ import "./prompt_panel.js";
   var PKG = "comfyui-xwide-prompt-helper";
   var I18N = globalThis.XWidePromptI18n;
   var Panel = globalThis.XWidePromptPanel;
-  var PLUGIN_VERSION = "1.0.7";
+  var PLUGIN_VERSION = "1.0.9";
 
   /**
    * 扩展在 ComfyUI 里的静态路由名（= custom_nodes 下的**目录名**）。
@@ -226,19 +226,121 @@ import "./prompt_panel.js";
   }
 
   /**
-   * 设置面板里 X-WIDE 那一页的"门面"：品牌区 + 作者与链接 + 用法。
+   * 帮助文档的**内容**：品牌区（我的信息 / 版本 / 协议）→ 标题 → 快捷键全表 → 使用说明 → 作者与链接。
    *
-   * 用户 1.0.4 用红箭头指着设置面板左边的「X-WIDE 提示词插件」说
-   * 「这个页面排版还没改」（参考图 = X-WIDE_plugin_model_manager：品牌区打头 + 卡片分区）。
-   * ComfyUI 的设置页排版是它自己画的（左标签 / 右控件），我们能动手的正是右边那一列。
+   * 两个地方共用这一块（用户 m00431 / m00448 原话：「我要的是之前那个带我的页面的，还有那个版本信息的
+   * 帮助说明的一个整个设置页面」「设置就是帮助那个样式呀，打开帮助文档里面那个页面就行了」）：
+   *   ① 面板标题栏 ⚙ 弹出的帮助文档；
+   *   ② ComfyUI 原生设置面板里 `X-WIDE 提示词输入插件` 那一页的第一行（`.xwph-page`）。
+   * 一处写两份迟早长歪，所以只有一份。
+   */
+  function buildHelpNodes(t, manager) {
+    var nodes = [];
+
+    // ① 品牌区 —— 用户要的「我的信息」就在这儿。
+    nodes.push(buildBrandBlock(t));
+
+    // ② 标题。
+    nodes.push(el("div", "xwph-help-title", t("helpTitle")));
+
+    // ③ 快捷键（P / N 当前值 + 面板里的键）—— 用户点名要的第一样东西。
+    var keysCard = card(t("aboutKeysTitle"));
+    var shortcuts =
+      manager && typeof manager.getShortcuts === "function" ? manager.getShortcuts() : { positive: null, negative: null };
+    var describe =
+      manager && typeof manager.describeShortcut === "function"
+        ? manager.describeShortcut
+        : function (s) {
+            return s ? String(s.code || s.key || s) : t("shortcutOff");
+          };
+    [
+      [t("settingPositive"), describe(shortcuts.positive)],
+      [t("settingNegative"), describe(shortcuts.negative)],
+    ].forEach(function (pair) {
+      var row = el("div", "xwph-setting-row xwph-help-row");
+      row.appendChild(el("span", "xwph-help-key", pair[1]));
+      row.appendChild(el("span", "xwph-setting-label", pair[0]));
+      keysCard.appendChild(row);
+    });
+    keysCard.appendChild(el("div", "xwph-help-note", t("helpKeysIntro")));
+    // 面板里能用的键，逐条写明白（用户 m00074 点名的就是 Shift+回车换行这一条）。
+    [
+      ["Enter", t("helpKeyEnter")],
+      ["Shift + Enter", t("helpKeyShiftEnter")],
+      ["Esc", t("helpKeyEsc")],
+      [t("helpKeyFontBtns"), t("helpKeyFontNote")],
+      [t("helpKeySwap"), t("helpKeySwapNote")],
+      [t("helpKeyOffTwice"), t("helpKeyOffTwiceNote")],
+    ].forEach(function (pair) {
+      var row = el("div", "xwph-setting-row xwph-help-row");
+      row.appendChild(el("span", "xwph-help-key", pair[0]));
+      row.appendChild(el("span", "xwph-setting-label", pair[1]));
+      keysCard.appendChild(row);
+    });
+    keysCard.appendChild(el("div", "xwph-help-note", t("aboutKeysNote")));
+    keysCard.appendChild(el("div", "xwph-help-note", t("helpSettingsNote")));
+    nodes.push(keysCard);
+
+    // ④ 使用说明：原来挂在设置行 tooltip 上的那几段长文（用户要的「使用说明」）。
+    nodes.push(buildUsageCard(t));
+
+    // ⑤ 作者与链接：只要两个入口（用户拍板，跟参考插件一致）——放最后，不占头部。
+    nodes.push(buildLinksCard(t));
+
+    return nodes;
+  }
+
+  /**
+   * 设置面板里 `X-WIDE 提示词输入插件` 那一页的"门面"。
+   *
+   * 用户 m00586 原话：「帮助文档它只需要一个小的按钮，P 和 N 打开的那个页面,帮助文档一样的页面就行了」。
+   * 所以这一行**不再**把整块帮助文档摊在设置页里，只留：品牌区（我的信息 / 版本 / 协议）
+   * + 一个小按钮 —— 点它 = 打开 P / N 面板标题栏 ⚙ 那个帮助文档（同一份内容，见 helpDialog）。
    */
   function buildInfoBlock() {
     var t = I18N.createTranslator(localeOf());
     var root = el("div", "xwph-page");
     root.appendChild(buildBrandBlock(t));
-    root.appendChild(buildLinksCard(t));
-    root.appendChild(buildUsageCard(t));
+
+    var btn = el("button", "xwph-help-open", "📖 " + t("settingHelpBtn"));
+    btn.type = "button";
+    btn.title = t("settingHelpTip");
+    if (typeof btn.addEventListener === "function") {
+      btn.addEventListener("click", function () {
+        // 与面板齿轮同一个弹窗：内容只有一份，不会长歪。
+        if (helpDialog && typeof helpDialog.show === "function") helpDialog.show();
+      });
+    }
+    root.appendChild(btn);
     return root;
+  }
+
+  /**
+   * 设置页里「自动粘贴」那一行的卡片：ComfyUI 原生 boolean 那行贴在左边，
+   * 用户 m00586 要的是控件都进中间那一列，所以我们自己画开关。
+   * 唯一真相仍然是面板管理器（getAutoPaste / setAutoPaste）——
+   * installAutoPasteSync 会把值同步回原生设置项，两个入口不会显示得不一样。
+   */
+  function buildAutoPasteCard() {
+    var t = I18N.createTranslator(localeOf());
+    var box = card(t("autoPaste"));
+
+    var line = el("label", "xwph-check xwph-setting-check-line");
+    var input = el("input", "xwph-setting-check");
+    input.type = "checkbox";
+    input.checked = panelManager && typeof panelManager.getAutoPaste === "function" ? !!panelManager.getAutoPaste() : true;
+    line.appendChild(input);
+    line.appendChild(el("span", "xwph-check-text", t("settingEnableLabel")));
+    if (typeof input.addEventListener === "function") {
+      input.addEventListener("change", function () {
+        if (panelManager && typeof panelManager.setAutoPaste === "function") {
+          panelManager.setAutoPaste(!!input.checked);
+        }
+      });
+    }
+    box.appendChild(line);
+    box.appendChild(el("div", "xwph-help-note", t("settingAutoPasteShort")));
+    return box;
   }
 
   /** 信息页里的外链按钮（GitHub / B 站这种）。 */
@@ -350,14 +452,16 @@ import "./prompt_panel.js";
     var t = I18N.createTranslator(localeOf());
     // ⚠️ 声明顺序与**显示顺序相反**：前端 flattenTree 是 `n.pop()` 逐个弹出来的
     // （`for(;n.length;){let e=n.pop(); …}`），所以数组里最后一条会排在最上面。
-    // 真机验过：按 [info, shortcutCheck, autopaste, fontScale] 声明时，页面上从上到下
-    // 依次是 文字大小 / 自动粘贴 / 快捷键 / 插件信息 —— 正好倒过来。
-    // 想让它显示成「插件信息（品牌区）→ 快捷键 → 自动粘贴 → 文字大小」，
-    // 这里就得**倒着写**。
+    //
+    // 这一页现在的样子（用户 m00586 拍板：「把经框这些设置放到中间，帮助文档它只需要一个小的按钮」）：
+    //   ① 最上面 = 品牌区（我的信息 / 版本 / 协议）+ 一个「📖 使用帮助」小按钮
+    //      —— 点它打开的就是 P / N 面板标题栏 ⚙ 那个帮助文档（同一份内容）。
+    //   ② 下面三行控件（快捷键 / 自动粘贴 / 文字大小）都装进我们画的卡片，
+    //      CSS 把它们居中成一列；ComfyUI 给每行画的标签列由 CSS 藏掉（卡片自带标题，不重复文字）。
     return [
       {
         // 文字大小（用户 1.0.4：「打开的对话框里文字太小，加入大小调节」）。
-        // 面板标题栏的 A- / A+ 与 Ctrl+滚轮改的都是同一个值（manager 的 fontScale）。
+        // 面板标题栏的 A- / A+ 改的就是这个值；Ctrl+滚轮只在面板输入框里调它（m00586）。
         id: "XWidePromptHelper.fontScale",
         category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupFont")],
         name: t("settingFont"),
@@ -368,15 +472,19 @@ import "./prompt_panel.js";
       },
       {
         // 自动粘贴的开关。用户要的是"面板里勾一下、设置里也能勾一下"，
-        // 两边的唯一真相都是插件自己的存储（XWidePromptHelper.autopaste）。
-        // 这里也做成一张卡片（而不是原生 boolean）—— 因为这一页每行都要居中，
-        // 原生的开关行左边挂着标签列，藏了标签就只剩一个孤零零的开关。
+        // 两边的唯一真相都是面板管理器（背后就是插件存储 XWidePromptHelper.autopaste）。
+        //
+        // 1.0.9（m00586）：这一行从原生 boolean 改成**卡片里的开关** ——
+        // 原生那一行的开关贴在行尾（左边标签、右边控件），跟上面帮助区对不齐，
+        // 用户红框圈住三行控件说「把经框这些设置放到中间」。卡片 + CSS 居中解决。
+        // 之前那次卡片版被吐槽，是因为卡片标题把 ComfyUI 标签列一字不差重复了一遍；
+        // 现在 CSS 把标签列藏掉（`:has(.xwph-card)`），只剩卡片标题一处文字，不重复。
         id: "XWidePromptHelper.autopaste",
         category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupAutoPaste")],
         name: t("settingAutoPaste"),
         tooltip: t("settingAutoPasteShort"),
         type: function () {
-          return card(t("settingAutoPaste"), buildAutoPasteEditor());
+          return buildAutoPasteCard();
         },
       },
       {
@@ -386,14 +494,18 @@ import "./prompt_panel.js";
         category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupShortcutCheck")],
         name: t("settingShortcutCheck"),
         // tooltip 只留一句话：长提示会挂在那儿不消失（用户截图里的现象），
-        // 完整说明写在「用法」卡片里。
+        // 完整说明在「📖 使用帮助」那个弹窗里。
         tooltip: t("settingShortcutCheckShort"),
         type: function () {
           return card(t("settingShortcutCheck"), buildShortcutEditor());
         },
       },
       {
-        // 品牌区 + 作者与链接 + 用法：整页的"门面"，照参考图排（声明在最后 = 显示在最上）。
+        // 「插件信息」那一行 = 品牌区 + 一个打开帮助文档的小按钮。
+        // 声明在最后 = 显示在最上面（前端 flattenTree 是 n.pop()）。
+        //
+        // 用户 m00431 / m00448：「我要的是之前那个带我的页面的，还有那个版本信息的帮助说明」
+        // （1.0.8 我整条撤了 = 撤过头）；m00586 补一刀：「帮助文档它只需要一个小的按钮」。
         id: "XWidePromptHelper.info",
         category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupInfo")],
         name: t("settingPageInfo"),
@@ -697,7 +809,6 @@ import "./prompt_panel.js";
 
   var shortcutEditorSync = null; // 当前那棵编辑器的刷新函数（面板没开时是 null）
   var fontEditorSync = null; // 「文字大小」那一行的刷新函数（同上）
-  var autoPasteEditorSync = null; // 「自动粘贴」那张卡片里勾选框的刷新函数（同上）
   var shortcutCapture = null; // 正在等按键的那一项
 
   function refreshShortcutEditor() {
@@ -745,7 +856,10 @@ import "./prompt_panel.js";
     row.appendChild(up);
     row.appendChild(reset);
     root.appendChild(row);
-    root.appendChild(el("div", "xwph-font-note", t("fontNotice")));
+    // 这里**不放长说明**。真机量过（他机器 1.0.8）：参考插件「✨提示词小助手」里
+    // 自定义那一行是 行 1006x32 / 控件 212x30；我们带上那句说明后变成 1006x56 / 控件 594，
+    // 整页就比人家的宽一大截 —— 那就是他说"排版没还原"的地方。
+    // 完整说明（只放大正文、Ctrl+滚轮、A- / A+、70%~400%）写在「关于」弹窗的「用法」里。
 
     function current() {
       return panelManager && typeof panelManager.fontScale === "function" ? panelManager.fontScale() : 1;
@@ -838,6 +952,7 @@ import "./prompt_panel.js";
   function startShortcutCapture(kind) {
     stopShortcutCapture();
     if (!panelManager) return;
+    var tr = I18N.createTranslator(localeOf());
     var state = { kind: kind };
     state.onKey = function (e) {
       e.preventDefault();
@@ -848,7 +963,14 @@ import "./prompt_panel.js";
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {
-        // 空 = 关掉这个键（面板还能从右键菜单打开）
+        // 空 = 关掉这个键（面板还能从右键菜单打开）。
+        // 1.0.8 的教训：一次 Delete 就把键悄悄关掉，用户回来只看到「按 P 没反应」。
+        // 所以要连按两次才真的关掉，第一次只给一句提示。
+        if (!state.armedOff) {
+          state.armedOff = true;
+          if (typeof panelManager.toast === "function") panelManager.toast(tr("shortcutOffConfirm"), "warn");
+          return;
+        }
         setShortcutKey(kind, null);
         stopShortcutCapture();
         return;
@@ -978,42 +1100,8 @@ import "./prompt_panel.js";
   }
 
   /**
-   * 「自动粘贴」那张卡片里的一行：勾选框 + 一句说明。
-   *
-   * 跟面板页脚那个勾选框是同一个值（manager 的 getAutoPaste / setAutoPaste）。
-   */
-  function buildAutoPasteEditor() {
-    var t = I18N.createTranslator(localeOf());
-    var wrap = el("div", "xwph-check-line");
-    var label = el("label", "xwph-check");
-    var box = el("input", "xwph-check-box");
-    box.type = "checkbox";
-    box.checked =
-      panelManager && typeof panelManager.getAutoPaste === "function" ? !!panelManager.getAutoPaste() : true;
-    box.addEventListener("change", function () {
-      if (panelManager && typeof panelManager.setAutoPaste === "function") {
-        panelManager.setAutoPaste(!!box.checked);
-      }
-      if (panelManager && typeof panelManager.toast === "function") {
-        panelManager.toast(panelManager.t(box.checked ? "autoPasteOn" : "autoPasteOff"), "ok");
-      }
-    });
-    label.appendChild(box);
-    label.appendChild(el("span", "xwph-check-text", t("settingAutoPaste")));
-    wrap.appendChild(label);
-    wrap.appendChild(el("div", "xwph-font-note", t("settingAutoPasteShort")));
-
-    autoPasteEditorSync = function () {
-      var on =
-        panelManager && typeof panelManager.getAutoPaste === "function" ? !!panelManager.getAutoPaste() : true;
-      box.checked = on;
-    };
-    return wrap;
-  }
-
-  /**
    * 面板页脚那个勾选框和设置面板里那一行是**同一个开关**，改的入口有两个：
-   * 设置卡片里会回调我们，面板页脚只调 `manager.setAutoPaste`。
+   * 设置那一行走原生 boolean 的 onChange，面板页脚只调 `manager.setAutoPaste`。
    * 这里把面板管理器那一个方法包一层：谁改都顺手把两边同步过去，
    * 免得显示得不一样（真机踩过"改完那行还写着旧值"的同类坑）。
    */
@@ -1023,7 +1111,6 @@ import "./prompt_panel.js";
     manager.setAutoPaste = function () {
       var result = original.apply(manager, arguments);
       syncAutoPasteSetting();
-      if (autoPasteEditorSync) autoPasteEditorSync();
       return result;
     };
     return true;
@@ -1050,29 +1137,12 @@ import "./prompt_panel.js";
     var backdrop = el("div", "xwph-settings-backdrop");
     var box = el("div", "xwph-settings xwph-about");
 
-    // ① 品牌区（和设置面板那一页共用同一块）
-    box.appendChild(buildBrandBlock(t));
-
-    // ② 作者与链接：只要两个入口（用户拍板，跟参考插件一致）
-    box.appendChild(buildLinksCard(t));
-
-    // ③ 用法：原来挂在设置行 tooltip 上的那几段长文，现在住在这儿
-    box.appendChild(buildUsageCard(t));
-
-    // ④ 快捷键（当前值 + 去哪儿改）
-    var keysCard = card(t("aboutKeysTitle"));
-    var shortcuts = panelManager.getShortcuts();
-    [
-      [t("settingPositive"), panelManager.describeShortcut(shortcuts.positive)],
-      [t("settingNegative"), panelManager.describeShortcut(shortcuts.negative)],
-    ].forEach(function (pair) {
-      var row = el("div", "xwph-setting-row");
-      row.appendChild(el("span", "xwph-setting-label", pair[0]));
-      row.appendChild(el("span", "xwph-keycap", pair[1]));
-      keysCard.appendChild(row);
+    // 内容整块来自 buildHelpNodes —— 和 ComfyUI 设置页里「插件信息」那一行**同一份**
+    // （用户 m00448：「设置就是帮助那个样式呀，打开帮助文档里面那个页面就行了」）。
+    // 顺序：我的信息（品牌区）→ 标题 → 快捷键全表 → 使用说明 → 作者与链接。
+    buildHelpNodes(t, panelManager).forEach(function (node) {
+      box.appendChild(node);
     });
-    keysCard.appendChild(el("div", "xwph-about-text", t("aboutKeysNote")));
-    box.appendChild(keysCard);
 
     var footer = el("div", "xwph-settings-footer");
     footer.appendChild(el("span", "xwph-spacer"));
@@ -1114,6 +1184,12 @@ import "./prompt_panel.js";
 
   /** 初始化完成后面板管理器挂在这里。 */
   var panelManager = null;
+
+  /**
+   * 帮助文档弹窗（P / N 面板标题栏 ⚙ 与设置页那个「📖 使用帮助」按钮共用同一个实例）。
+   * boot() 里 createAboutDialog 建好后赋值；设置页的按钮在点击时才用，那时早已就位。
+   */
+  var helpDialog = null;
 
   /** 拿到的 app 实例，存一份备用（不依赖 window.app）。 */
   var currentApp = null;
@@ -1201,6 +1277,12 @@ import "./prompt_panel.js";
     var app = resolveApp(instance);
     if (!app) return false;
 
+    // 同 prompt_panel.js 里那段注释说的：ComfyUI 并发 import 扩展 js，
+    // 模块末尾才往 globalThis 挂 api（bridge.js:1067 / i18n.js:493 / prompt_panel.js:3698）。
+    // 本文件顶部第 22-23 行抓到 undefined 的话，boot 之后全都用不了 —— 在这里再认一次。
+    I18N = globalThis.XWidePromptI18n || I18N;
+    Panel = globalThis.XWidePromptPanel || Panel;
+
     try {
       currentApp = app;
 
@@ -1211,6 +1293,13 @@ import "./prompt_panel.js";
         locale: null, // 交给 i18n 按 navigator.language 自动判定
         onOpenSettings: function () {
           openNativeSettings();
+        },
+        // 面板标题栏的齿轮 = 打开**帮助文档**（就是下面 createAboutDialog 那个弹窗，
+        // 从 1.0.9 起它装着：我的信息 + 快捷键 + 使用说明 + 链接）。
+        // 用户 m00074：「这个不要改什么设置界面了，直接改成帮助文档吧」。
+        // 这里闭包引用 aboutDialog（var 提升，点击时早已赋值好），不碰 ComfyUI 的设置页。
+        onHelp: function () {
+          if (aboutDialog && typeof aboutDialog.show === "function") aboutDialog.show();
         },
       });
 
@@ -1226,6 +1315,8 @@ import "./prompt_panel.js";
       installFontSync(panelManager);
 
       var aboutDialog = createAboutDialog(panelManager);
+      // 设置页那个「📖 使用帮助」小按钮要用它（见 buildInfoBlock）。
+      helpDialog = aboutDialog;
 
       // 设置项在 registerExtension 那一刻就已经通过扩展对象上的 settings
       // 登记进原生面板了（见 PANEL_EXTENSION.settings）。这里把管理器接上去，

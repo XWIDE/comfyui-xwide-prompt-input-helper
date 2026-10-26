@@ -47,6 +47,7 @@ next to it. Your existing habits keep working; when you want room to think, pres
 | `Shift+Enter` | Inside the overlay: insert a new line |
 | `Esc` | Close the overlay (the text is kept as a draft and restored next time) |
 | “Close” in the footer | Same as `Esc` — for when you'd rather use the mouse |
+| `⚙` in the title bar | Opens the **Help** page: my info, the full key table (including `Shift+Enter` for a new line), how to use it, author & links |
 
 > Both overlays can be open at the same time, so you can edit positive and negative side by side.
 
@@ -127,9 +128,15 @@ If everything comes up empty the panel still opens, but it flags "no target" in 
 ### Settings
 
 Settings live in **ComfyUI's own settings panel** (the bottom-left gear, or `Ctrl+,`):
-look for `X-WIDE Prompt Input Helper`. It deliberately holds **only three rows** — change the shortcuts,
-switch auto-paste on or off, adjust the text size. The plugin's own information (logo, version,
-author, usage) does not take up settings rows; it lives on the **About** info page instead.
+look for `X-WIDE Prompt Input Helper`. That page is one centered column of four blocks:
+
+1. **My info** — logo, version, `⚖ GPL-3.0`, disclaimer — plus a small **`📖 Help`** button.
+   It opens exactly the help the overlay's `⚙` opens: the full key table (including `Shift+Enter`
+   for a line break), usage notes and *Author & links*;
+2. a **Shortcuts** card; 3. an **Auto-paste** card; 4. a **Text size** card.
+
+> The label column on the left is hidden by CSS — otherwise the same sentence shows up twice, which
+> is what the user pointed at with red arrows as "the layout is not restored".
 
 **Shortcuts — press the combination instead of typing it, with conflict warnings:**
 
@@ -146,8 +153,10 @@ author, usage) does not take up settings rows; it lives on the **About** info pa
   listens in the capture phase and swallows the key, so pressing `P` / `N` only opens the
   overlay (verified on a real machine — nothing gets pinned, no sidebar moves). Switch to
   another combo if you want to stay out of the way entirely.
-- `Delete` / `Backspace` switches that key **off** (the panel still opens from the canvas
-  right-click menu), `Esc` cancels, and there is a *restore defaults* button;
+- `Delete` / `Backspace` switches that key **off**, but only after you press it **twice** — the first
+  press just shows a "press once more to turn this key off" note, so an accidental tap can't wipe your
+  shortcut (that slip is how people ended up with "`P` does nothing anymore"); the panel still opens
+  from the canvas right-click menu. `Esc` cancels, and there is a *restore defaults* button;
 - changes take effect **immediately**, no page reload.
 
 **Auto-paste**: one checkbox in the overlay footer, another one in settings — the same switch,
@@ -156,11 +165,22 @@ on by default.
 **Text size**: the `A-` / `A+` buttons in the overlay header and the *Text size* row in settings
 are the same value (70%–400%; 10% a click, 25% above 200%, plus *restore the default size*).
 
+> That multiplier **only enlarges the text inside the editor**: the panel size, title bar, buttons,
+> the canvas and every other part of ComfyUI stay exactly as they are. (Since 1.0.9 — earlier
+> versions scaled the whole chrome with it, which looked like "the entire page is zooming".)
+
+> **Inside the editor, `Ctrl + wheel` scales just that text** (since 1.0.9). The canvas behind stays
+> put: ComfyUI owns `Ctrl + wheel` as canvas zoom, so while an overlay is open the plugin temporarily
+> switches off the canvas's own wheel gate (`allow_dragcanvas`) and hands it back untouched when the
+> overlay closes. A plain wheel inside the editor **scrolls the prompt** — and it never leaks through
+> to the canvas either.
+
 The overlay's title bar carries `A-` / `A+` / `⚙`; the old `?` has become that
-permanent evidence line under the target bar. Right-clicking an empty canvas spot →
-*Prompt Helper* reaches settings and *About* — **About** is an info page: logo, version,
-`⚖ GPL-3.0`, a disclaimer, *Author & links* (GitHub repository / Bilibili) and two cards for
-usage and shortcuts.
+permanent evidence line under the target bar. **Clicking the `⚙` opens the Help page**: my info
+(logo, version, `⚖ GPL-3.0`, disclaimer), the full key table (`Enter` apply & close /
+`Shift + Enter` new line / `Esc` / `A+` `A-` / `→ Negative` `→ Positive` / press `Delete` twice),
+usage notes, and *Author & links* (GitHub repository / Bilibili). Right-clicking an empty canvas
+spot → *Prompt Helper* reaches the same help, or jumps straight to the shortcut row in ComfyUI settings.
 
 ## Installation
 

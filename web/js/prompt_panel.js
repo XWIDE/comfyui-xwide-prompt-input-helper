@@ -20,6 +20,20 @@
  *
  * 5. 内容永远先写进草稿存储，应用成功才清掉；关掉面板不丢内容。
  */
+
+/**
+ * 依赖顺序**写死**在这里，别删：
+ *
+ * ComfyUI 是「把 custom_nodes 下每个 .js 都 import 一遍」，而且是并发 import ——
+ * 谁先执行完不保证。本文件在 26-27 行抓 globalThis 上的 api（bridge.js:1067、i18n.js:493
+ * 都在各自文件末尾才赋值），一旦本文件比 bridge.js 先跑完，Bridge 就是 undefined，
+ * 之后每次开面板都炸 `Cannot read properties of undefined (reading 'listPromptBoxes')`
+ * （真机 CDP 探针抓到过一次）。静态 import 会在本文件求值之前先把依赖求值完，
+ * 模块注册表按 URL 去重，所以前端之后再 import 一次也不重复执行。
+ */
+import "./i18n.js";
+import "./bridge.js";
+
 (function (global) {
   "use strict";
 
@@ -313,6 +327,17 @@
 
   function createPanelManager(options) {
     var opts = options || {};
+
+    /**
+     * 模块之间是靠 globalThis 交接的（bridge.js:1067 / i18n.js:493 在文件末尾才赋值），
+     * 而 ComfyUI 加载扩展 js 是**并发 import** —— 谁先执行完不保证。
+     * 真机踩过：本文件比 bridge.js 先跑完，第 27 行抓到的 Bridge 就是 undefined，
+     * 之后每次开面板都炸 `Cannot read properties of undefined (reading 'listPromptBoxes')`。
+     * 所以在真正建面板这一刻**再认一次**（调用点全在闭包里读这两个变量，改这里就全生效）。
+     */
+    I18N = globalThis.XWidePromptI18n || I18N;
+    Bridge = globalThis.XWidePromptBridge || Bridge;
+
     var doc = opts.document || globalThis.document;
     var app = opts.app || globalThis.app;
     var namespace = opts.namespace || "XWidePromptHelper";
@@ -1390,6 +1415,12 @@
       // ------------------------------------------------------------ 结构
 
       var overlay = el("div", "xwph-overlay xwph-hidden");
+      /**
+       * 宿主**官方**的滚轮接管声明。前端 `useCanvasInteractions` 里写着：
+       * `wheelCapturedByFocusedElement = e => e.target?.closest('[data-capture-wheel="true"]') && document.activeElement 在里面`
+       * —— 认这个属性的面板，光滚轮不会被转给画布（Ctrl+滚轮它照样转发，那一半由下面的 allow_dragcanvas 管）。
+       */
+      overlay.setAttribute("data-capture-wheel", "true");
       overlay.setAttribute("data-xwph-kind", kind);
 
       var dialog = el("div", "xwph-dialog");
@@ -1415,7 +1446,9 @@
       var fontUpBtn = iconButton("A+", t("fontBigger"));
       fontUpBtn.classList.add("xwph-font-up");
 
-      var settingsBtn = iconButton("⚙", t("settings"));
+      // 齿轮的悬停说明从「设置」改成「使用帮助」——它现在打开的是帮助文档，
+      // 不是 ComfyUI 的设置页（用户 m00074）。
+      var settingsBtn = iconButton("⚙", t("helpTitle"));
       settingsBtn.classList.add("xwph-settings-btn");
       header.appendChild(grip);
       header.appendChild(title);
@@ -1449,6 +1482,10 @@
       textarea.className = "xwph-textarea";
       textarea.spellcheck = false;
       textarea.setAttribute("wrap", "soft");
+      // ⚠️ 这里**刻意不要**打 `data-capture-wheel="true"`。新前端确实用这个属性标记
+      // 「滚轮归本部件」，但我们自己的 bridge.js:92 也拿它当「这是画布上的控件元素」的判据
+      // （findWidgetByElement 的兜底），一打上去我们面板里的输入框就被当成节点控件，
+      // 目标解析会认出一个假目标（测试里表现为候选列表不出现）。滚轮靠下面那个捕获相监听器解决。
       textarea.placeholder = t(kind === "positive" ? "titlePositive" : "titleNegative") + "…";
       body.appendChild(textarea);
 
@@ -1587,6 +1624,18 @@
           "pointerdown",
           function (e) {
             if (e.button !== undefined && e.button !== 0) return;
+
+            /**
+             * 标题栏里塞了按钮（A- / A+ / ⚙）。这里**不能**在它们身上吞事件：
+             * 按规范，对 `pointerdown` 调 `preventDefault()` 会连带取消兼容的
+             * `mousedown` / `mouseup` / `click` —— 于是用户点这三个按钮"没起效"
+             * （1.0.8 用户报的第一条）。合成一个 click 是能过的，所以 DOM 桩测不出来。
+             *
+             * 判据：落点在可交互控件上就当"不是拖动手势"，直接放行，让 click 正常发生。
+             */
+            var node = e.target;
+            if (node && node.closest && node.closest("button, input, select, textarea, a")) return;
+
             swallow(e);
 
             if (handle.setPointerCapture) {
@@ -2199,6 +2248,7 @@
         refreshCounter();
 
         if (o.focus !== false) focusEditor();
+        syncCanvasWheel(); // 面板开着 = 画布的滚轮缩放/平移临时关掉
 
         debugLog("shown", kind, "target:", state.target ? state.target.nodeTitle + "/" + state.target.field : "(none)", "source:", state.targetSource);
       }
@@ -2210,6 +2260,7 @@
         state.visible = false;
         overlay.classList.add("xwph-hidden");
         closeLibraryMenu();
+        syncCanvasWheel(); // 两个面板都关完 = 把画布的滚轮原样还回去
 
         // 草稿立刻落盘：用户可能马上就关浏览器。
         flushDraft();
@@ -2290,7 +2341,11 @@
       });
       settingsBtn.addEventListener("click", function (e) {
         swallow(e);
-        if (opts.onOpenSettings) opts.onOpenSettings();
+        // 1.0.9：齿轮不再打开 ComfyUI 的设置页，直接开**帮助文档**（快捷键 + 使用说明 + 我的信息）。
+        // 用户 m00074：「这个不要改什么设置界面了，直接改成帮助文档吧」。
+        // 没有 onHelp 时退回原来的行为（测试桩 / 老宿主），不至于点了没反应。
+        if (opts.onHelp) opts.onHelp();
+        else if (opts.onOpenSettings) opts.onOpenSettings();
       });
 
       // 文字大小：每点一下走一步（0.1 倍），并把新倍数报给用户 —— 不然点了没反馈，
@@ -2309,26 +2364,13 @@
       });
 
       /**
-       * 滚轮实时调字号（用户 1.0.4：「里面的文字…比如按滚轮就实时调整字的大小」）。
-       *
-       * 用户要的是"只放大里面的正文"，所以只有 `.xwph-textarea` 跟着变
-       * （见 CSS 里那段注释）。滚轮这边有个必须守住的例外：
-       * **输入框里不带 Ctrl 的滚轮要留给滚动** —— 提示词动辄几千字，抢掉滚动就没法读了。
-       * 所以：Ctrl/Cmd + 滚轮（在面板任何位置）= 调字号；输入框里光滚 = 滚动；
-       * 面板其它地方（标题栏、目标条、页脚）光滚也当调字号 —— 那里本来也没东西可滚。
+       * 滚轮实时调字号：这个监听器**不在这里挂**，改挂在 document/window 的捕获相，
+       * 见 `onWheelZoom` + `init()` 里那行注册。原因（1.0.8 真机 CDP 实测）：
+       * ComfyUI 前端 0.42.5 在**文档级捕获**就把「落在 textarea 上的滚轮」拦走了 ——
+       * preventDefault + stopPropagation，再把副本转给画布缩放。挂在面板 overlay 的捕获相
+       * 在它下面，输入框里的 Ctrl+滚轮永远轮不到我们（探针数字：document:capture 之后
+       * overlay / dialog / body / textarea 一层都没走到，字号也没变）。
        */
-      dialog.addEventListener(
-        "wheel",
-        function (e) {
-          var node = e.target && typeof e.target.closest === "function" ? e.target : null;
-          var scrollable = node && node.closest(".xwph-textarea, .xwph-picker");
-          if (!(e.ctrlKey || e.metaKey) && scrollable) return; // 老老实实滚
-          swallow(e);
-          var dir = (e.deltaY || 0) < 0 ? 1 : -1;
-          setFontScale(fontScale() + dir * fontStepFor(fontScale()));
-        },
-        { passive: false },
-      );
       targetSelect.addEventListener("change", function (e) {
         stopEvent(e);
         onTargetChange();
@@ -2822,8 +2864,13 @@
       // 在那里不让路，插件就等于没装（参见 `isGraphPromptBox` 的注释）。
       if (!shortcutIsModified(shortcut) && e && e.target) {
         var target = e.target;
-        if (isTypingTarget(target) && !isOurPanelElement(target) && !isGraphPromptBox(target)) {
-          return { kind: kind, plainTyping: true, shortcut: shortcut };
+        if (isTypingTarget(target) && !isGraphPromptBox(target)) {
+          /**
+           * 焦点在**我们自己面板的输入框**里时，同样让路，而且**连提示都不给**：
+           * 用户 1.0.8 报的就是这个 —— 「在正向提示词框里打字用的 N 时会打开反向提示词的框」。
+           * 在自己的框里打字就是打字，弹一句「请先点画布…」只会碍事。
+           */
+          return { kind: kind, plainTyping: true, quiet: isOurPanelElement(target), shortcut: shortcut };
         }
       }
 
@@ -2860,6 +2907,16 @@
      * 那些地方打 p / n 是正经输入。
      */
     function isGraphPromptBox(node) {
+      /**
+       * 先排除我们自己的浮窗。
+       *
+       * 为什么必须显式挡一刀：bridge.js 认画布控件时有个兜底是
+       * `closest("#graph-canvas-container, .graph-canvas-container, .litegraph")`，
+       * 而 ComfyUI 的 `<body>` 就带着 `litegraph` 这个 class —— 我们的浮窗挂在 body 下面，
+       * 于是面板里的输入框被当成"画布上的提示词大框"，单键 P / N 又回来抢打字了
+       * （1.0.8 用户报的第四条，真机探针实测：在自己框里打 n，可见面板从 1 个变 2 个）。
+       */
+      if (isOurPanelElement(node)) return false;
       if (!Bridge.isWidgetElement(node)) return false;
       var tag = (node.tagName || "").toUpperCase();
       if (tag !== "TEXTAREA") return false;
@@ -2890,10 +2947,14 @@
 
       var target = e.target;
 
-      // 焦点在别人的输入框里，而且快捷键本身是单字母：不抢这个按键，
-      // 只提示一句。这不是"坏了"，是刻意保住提示词能手打。
+      // 焦点在输入框里，而快捷键本身是单字母：不抢这个按键，打字优先。
+      // 这不是"坏了"，是刻意保住提示词能手打。
+      // 焦点在我们**自己的**面板里时连提示都不给（`quiet`）——
+      // 在自己的框里打 n 弹一句「请先点画布」纯属碍事（1.0.8 用户报的第四条）。
       if (hit.plainTyping) {
-        toast(t("plainKeyNeedsBlur", { key: describeShortcut(hit.shortcut) }));
+        if (!hit.quiet) {
+          toast(t("plainKeyNeedsBlur", { key: describeShortcut(hit.shortcut) }));
+        }
         return;
       }
 
@@ -2947,6 +3008,7 @@
       }
 
       var node = e.target;
+
       if (!Bridge.isWidgetElement(node)) return;
 
       var resolved = resolveFromElement(node);
@@ -3462,6 +3524,70 @@
     host.appendChild(panels.positive.overlay);
     host.appendChild(panels.negative.overlay);
 
+    /**
+     * 为什么滚轮监听挂在 **window/document 的捕获相**、而不是面板上：ComfyUI 前端 0.42.5 在
+     * 文档级捕获就把落在 textarea 上的滚轮拦走（preventDefault + stopPropagation，再转发给画布），
+     * 谁站在最上面谁先拿到事件 —— 我们只能站到它上面去。真机探针数字（1.0.8 那版挂在 overlay
+     * 捕获相时）：document:capture 之后 overlay / dialog / .xwph-body / textarea 一层都没走到。
+     */
+    /**
+     * 面板开着的时候，把画布的滚轮缩放/平移**临时关掉**（用宿主自己的开关，不写它的状态、不改它的函数）。
+     *
+     * 取证（前端包 `settingStore-DZ2-HL-F.js`，0.42.5）：
+     *   - litegraph 的滚轮监听挂在**画布元素**上：`e.addEventListener("wheel", this._mousewheel_callback, false)`；
+     *   - 前端的转发器 `forwardEventToCanvas` 会把落在我们面板上的滚轮**复制**一份派发进画布元素：
+     *     `n.dispatchEvent(new WheelEvent("wheel", {clientX, clientY, deltaX, deltaY, ctrlKey, ...}))`
+     *     —— 复制出来的事件不带我们的 stopPropagation，所以光靠吃事件挡不住它（真机实测：字号 1→1.1 的同时
+     *     `canvas.ds.scale` 也 1→1.1 = 用户说的「穿透」「背景也跟着缩放」）；
+     *   - 而 `processMouseWheel(e)` 的第一行就是 `if (!this.graph || !this.allow_dragcanvas) return;`。
+     * 所以：**面板开着就把当前画布实例的 `allow_dragcanvas` 置 false**，那份复制过来的滚轮自己就返回了。
+     * 面板关完按原值恢复（每个画布实例存自己的原值，切标签页不会串）。
+     * 用户 m00589 要的就是这个：「我是要里面可以缩放，外面不动」。
+     */
+    var canvasWheelSaved = typeof WeakMap === "function" ? new WeakMap() : null;
+
+    function syncCanvasWheel() {
+      if (!canvasWheelSaved) return;
+      var canvas = app && app.canvas;
+      if (!canvas || typeof canvas.allow_dragcanvas !== "boolean") return;
+      if (isAnyVisible()) {
+        if (!canvasWheelSaved.has(canvas)) canvasWheelSaved.set(canvas, canvas.allow_dragcanvas);
+        canvas.allow_dragcanvas = false;
+      } else if (canvasWheelSaved.has(canvas)) {
+        canvas.allow_dragcanvas = canvasWheelSaved.get(canvas);
+        canvasWheelSaved.delete(canvas);
+      }
+    }
+
+    /**
+     * 滚轮调字号（用户 m00589 原话：「页面缩放搞反了，我是要里面可以缩放，外面不动，
+     * 就是在里面按住 CTRL+滚轮，能缩放字的大小」）。
+     *
+     * 规则：
+     *   - **面板外**的滚轮一概不碰（那是宿主的画布，正常缩放平移）；
+     *   - 面板里 `Ctrl/Cmd + 滚轮` = 只调**输入框里的字**（标题栏/页脚上不算，避免顺手一滚整版变字）；
+     *   - 面板里光滚轮 = 不调字号；落在输入框/列表里就滚内容，别处直接吃掉；
+     *   - 面板里的滚轮**一律不外溢**（`swallow`），加上面那个 allow_dragcanvas 开关，
+     *     画布在我们面板开着的时候纹丝不动。字号倍数只放大输入区文字（CSS 只让 `.xwph-textarea` 吃它）。
+     */
+    function onWheelZoom(e) {
+      var node = e.target && typeof e.target.closest === "function" ? e.target : null;
+      if (!node || !node.closest(".xwph-overlay")) return; // 面板外：宿主的，一概不碰
+      var box = node.closest(".xwph-textarea, .xwph-picker");
+      if (e.ctrlKey || e.metaKey) {
+        if (!box) return; // 标题栏、页脚上不算
+        swallow(e);
+        var dir = (e.deltaY || 0) < 0 ? 1 : -1;
+        setFontScale(fontScale() + dir * fontStepFor(fontScale()));
+        return;
+      }
+      swallow(e); // 面板内光滚轮到此为止：不漏到背后的画布 / 页面
+      if (!box) return; // 不滚东西的地方：吃掉就完了
+      var max = Math.max(0, box.scrollHeight - box.clientHeight);
+      var next = (box.scrollTop || 0) + (e.deltaY || 0);
+      box.scrollTop = next < 0 ? 0 : next > max ? max : next;
+    }
+
     function init(api) {
       ensureStyles();
 
@@ -3493,7 +3619,13 @@
 
         // 从别的程序复制完切回来这一下（自动粘贴的第二条路，详见那一节）。
         win.addEventListener("focus", onWindowFocus, true);
+
+        // 滚轮调字号：优先挂 window 捕获相 —— 它在 document 捕获相**之上**，
+        // 才能抢在 ComfyUI 0.42.5 那个文档级拦截之前拿到事件（详见 onWheelZoom）。
+        win.addEventListener("wheel", onWheelZoom, { capture: true, passive: false });
       }
+      // 没有 window 的场合（测试桩等）退到 document 捕获相，规则一样。
+      doc.addEventListener("wheel", onWheelZoom, { capture: true, passive: false });
       doc.addEventListener("visibilitychange", onVisibilityChange, true);
 
       debugLog("initialized; storage =", storage.kind, "; locale =", t.locale);
@@ -3538,6 +3670,8 @@
       fontRange: function () {
         return { min: FONT_MIN, max: FONT_MAX };
       },
+      // 画布视图快照已删除（1.0.9）：写宿主 ds.scale/ds.offset 会把用户自己缩好的画布拧回去，
+      // 用户 m00006 点名「它都会一起缩放整个页面。这是不对的」。字号只归我们管，画布一个字都不写。
       _panels: panels,
       _storage: storage,
       _lastInteracted: lastInteracted,

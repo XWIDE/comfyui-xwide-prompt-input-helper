@@ -325,8 +325,18 @@
 }
 
 .xwph-btn-icon {
-  width: 22px;
-  height: 22px;
+  /**
+   * 命中区按尺子 08 的底线来定：**≥28×26**，实测 22×22 时用户点不中
+   * （1.0.8 报的「这三个按钮没有起效」里，除了拖动吞事件，还有这个）。
+   *
+   * 1.0.9：宽高和字号**刻意不随 --xwph-scale 放大**。这些是面板的"外壳"（标题栏的
+   * A- / A+ / ⚙），字号倍数只管输入框里的字。之前让它们跟着长，400% 时标题栏被撑满整屏，
+   * 用户 m00006 看到的正是「它都会一起缩放整个页面」。想放大的是提示词，不是按钮。
+   */
+  width: 28px;
+  height: 26px;
+  min-width: 28px;
+  min-height: 26px;
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -824,48 +834,15 @@
   white-space: pre-line;
 }
 
-/* --------------------------------- 设置面板里 X-WIDE 那一页（1.0.4 的排版要求） */
+/* --------------------------------- 原生设置面板里那三行（1.0.8 收回原生排版） */
 /*
- * 用户要的「居中排版」。
- *
- * 真机探出来的结构（Chromium 里读的）：
- *   div.setting-item                       ← 一行
- *     └ div.flex.min-h-8.flex-row          ← 行内布局
- *         ├ div.form-label.flex.grow       ← 左边那列标签（宽约 358px）
- *         └ div.form-input.flex.justify-end← 右边那列控件（宽 640px，内容**靠右**）
- * 所以我们右边这块永远被顶到最右 —— 这就是"没居中"的根。
- *
- * 修法：这一页的每一行都把标签列藏掉，控件列占满整行并改成**居中**。
- * 每张卡片自己带标题（快捷键 / 自动粘贴 / 文字大小…），所以藏掉左边那列不丢信息；
- * 设置面板的搜索是按设置项名字过滤的，也照样搜得到。
- * `:has()` 需要 Chromium 105+（Edge / Chrome 都是），拿不到就退化成现在的样子，不会坏。
+ * 1.0.4 我加过一套「居中排版」：用 `:has()` 把 ComfyUI 自己的标签列（div.form-label）
+ * 整列藏掉、控件列占满并居中，再把品牌区 + 用法长文塞进设置页。
+ * 用户 1.0.8 的话：「设置里版提排版也给我改了，这些我没让你动，你为什么要动他？？」
+ * 那套东西全部撤掉 —— 现在设置页就是 ComfyUI 原生的「左标签 / 右控件」三行：
+ * 快捷键 / 自动粘贴 / 文字大小。插件信息只在「关于」弹窗里。
+ * 这里只留勾选框那一行的竖向排布。
  */
-
-.setting-item:has(.xwph-page) .form-label,
-.setting-item:has(.xwph-card) .form-label,
-.setting-item:has(.xwph-check-line) .form-label {
-  display: none;
-}
-
-.setting-item:has(.xwph-page) .form-input,
-.setting-item:has(.xwph-card) .form-input,
-.setting-item:has(.xwph-check-line) .form-input {
-  flex: 1 1 auto;
-  width: 100%;
-  justify-content: center;
-}
-
-.xwph-page,
-.xwph-card {
-  width: 100%;
-  max-width: 680px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.xwph-page {
-  max-width: 640px;
-}
 
 .xwph-check-line {
   display: flex;
@@ -873,27 +850,16 @@
   gap: 6px;
 }
 
-.xwph-page .xwph-card {
-  margin-top: 10px;
-}
-
-.xwph-page .xwph-about-logo {
-  width: 180px;
-}
-
-.xwph-page .xwph-card-title {
-  margin-bottom: 6px;
-}
-
-.xwph-page .xwph-font-note,
-.xwph-page .xwph-shortcut-note {
-  margin-top: 8px;
-}
-
 /* --------------------------------------------------------- 快捷键检查（原生设置里） */
 
 .xwph-shortcut-editor {
   padding: 4px 0 2px;
+  /* 真机量过（他机器 1.0.8）：不写宽度时这块是 694px 宽，状态那两句话一行铺开，
+     整页比参考插件「✨提示词小助手」宽一大截（人家的控件最宽 212px）。
+     ComfyUI 的 .form-input 本身是 justify-content:flex-end，所以限宽后就贴在右边，
+     跟原生那一列控件对齐；状态句子的字一个都不删，只是换行。 */
+  width: 100%;
+  max-width: 340px;
 }
 
 .xwph-shortcut-row {
@@ -946,6 +912,9 @@
 
 .xwph-font-editor {
   padding: 4px 0 2px;
+  /* 同上：参考插件里自定义那一行的控件是 212x30，我们贴齐那个量级。 */
+  width: 100%;
+  max-width: 240px;
 }
 
 .xwph-font-row {
@@ -967,4 +936,139 @@
   color: var(--descrip-text, #999);
   font-size: 11px;
   line-height: 1.6;
+}
+
+/* ================================================================ 帮助文档（1.0.9）
+   面板标题栏的齿轮打开的就是这一页：我的信息 + 快捷键 + 使用说明（用户 m00074）。
+   字号按尺子 02：标题 15 / 次级 13（小字加粗 600）；
+   对比度实测（弹窗底 --comfy-menu-bg #353535，WCAG 公式）：
+     #ddd 9.03:1、#ccc 7.64:1、键帽 #ddd on #222 11.71:1 —— 全部 ≥4.5:1。
+   （注意：--descrip-text #999 在这个底上只有 4.31:1 = 不合格，所以这里一律不用它。） */
+
+.xwph-help-title {
+  margin: 12px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--input-text, #ddd);
+}
+
+/* 帮助页里的键帽：长得像键盘，但是**静态说明**——不给 cursor:pointer、不给 hover。
+   设置里那种「点一下等按键」的可点键帽是 .xwph-keycap，两者不能混用（混了用户会去点）。 */
+.xwph-help-key {
+  flex: 0 0 auto;
+  min-width: 110px;
+  padding: 5px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.xwph-help-row .xwph-setting-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--input-text, #ddd);
+}
+
+/* 帮助页里的说明行（「面板打开以后就用这些键」、去哪儿改键）：比正文小一档但必须达标。 */
+.xwph-help-note {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--input-text, #ccc);
+}
+
+/* ================================================================ 设置页：居中的一列卡片（1.0.9）
+   用户 m00586 原话：「把经框这些设置放到中间，帮助文档它只需要一个小的按钮……你把这个页面设计好看一些」。
+   第一行 = 品牌区（我的信息 / 版本 / 协议）+ 「📖 使用帮助」小按钮（点开 = P/N 面板 ⚙ 那个弹窗）；
+   下面三行控件装进我们画的卡片，居中成一列。卡片自带标题，所以把 ComfyUI 给每行画的标签列藏掉——
+   不藏就会一字不差重复一遍，那是他之前红箭头指着的"排版没还原"。搜索按设置项名字过滤，照样搜得到。
+   `:has()` 需要 Chromium 105+（Edge / Chrome 都是），拿不到就退化成原生排版，不会坏。 */
+
+.setting-item:has(.xwph-page) .form-label,
+.setting-item:has(.xwph-card) .form-label {
+  display: none;
+}
+
+.setting-item:has(.xwph-page) .form-input,
+.setting-item:has(.xwph-card) .form-input {
+  flex: 1 1 auto;
+  width: 100%;
+  justify-content: center;
+}
+
+.xwph-page {
+  width: 100%;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 三行控件（快捷键 / 自动粘贴 / 文字大小）的卡片：跟上面那块同一个宽度，居中成一列。
+   用户 m00586：「把经框这些设置放到中间」。 */
+.setting-item:has(.xwph-card) .xwph-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 640px;
+  margin: 2px auto;
+}
+
+.xwph-page .xwph-about-logo {
+  width: 180px;
+}
+
+.xwph-page .xwph-card-title {
+  margin-bottom: 6px;
+}
+
+/* 「📖 使用帮助」小按钮：点开 = P / N 面板标题栏 ⚙ 那个帮助文档（同一个弹窗）。
+   命中区 ≥32px（尺子/02），字号 13/600，#ddd 对深色底 9.03:1。 */
+.xwph-help-open {
+  display: block;
+  margin: 14px auto 4px;
+  min-width: 132px;
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--input-text, #ddd);
+  background: var(--comfy-input-bg, #222);
+  border: 1px solid var(--border-color, #4e4e4e);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.xwph-help-open:hover {
+  color: #fff;
+  border-color: var(--primary-bg, #236692);
+}
+
+/* 设置页卡片里的「自动粘贴」开关：原生 boolean 那行的控件贴在行尾，
+   跟上面居中的卡片对不齐，所以自己画一个（唯一真相 = 面板管理器）。 */
+.xwph-setting-check-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--input-text, #ddd);
+  cursor: pointer;
+  user-select: none;
+}
+
+.xwph-setting-check {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary-bg, #236692);
+  cursor: pointer;
 }
