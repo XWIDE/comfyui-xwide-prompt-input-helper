@@ -4,7 +4,7 @@
 
 [中文](README.md) | **English**
 
-![version](https://img.shields.io/badge/version-1.0.7-blue)
+![version](https://img.shields.io/badge/version-1.0.8-blue)
 ![license](https://img.shields.io/badge/license-GPL--3.0-green)
 ![comfyui](https://img.shields.io/badge/ComfyUI%20frontend-%E2%89%A5%201.3-blue)
 
@@ -128,8 +128,10 @@ If everything comes up empty the panel still opens, but it flags "no target" in 
 
 Settings live in **ComfyUI's own settings panel** (the bottom-left gear, or `Ctrl+,`):
 look for `X-WIDE Prompt Input Helper`. It deliberately holds **only three rows** — change the shortcuts,
-switch auto-paste on or off, adjust the text size. The plugin's own information (logo, version,
-author, usage) does not take up settings rows; it lives on the **About** info page instead.
+switch auto-paste on or off, adjust the text size — using ComfyUI's own native row layout (name on the
+left, control on the right); we do not re-skin that page.
+The plugin's own information (logo, version, author, usage) does not take up settings rows; it lives on
+the **About** info page instead.
 
 **Shortcuts — press the combination instead of typing it, with conflict warnings:**
 
@@ -146,8 +148,10 @@ author, usage) does not take up settings rows; it lives on the **About** info pa
   listens in the capture phase and swallows the key, so pressing `P` / `N` only opens the
   overlay (verified on a real machine — nothing gets pinned, no sidebar moves). Switch to
   another combo if you want to stay out of the way entirely.
-- `Delete` / `Backspace` switches that key **off** (the panel still opens from the canvas
-  right-click menu), `Esc` cancels, and there is a *restore defaults* button;
+- **press** `Delete` / `Backspace` **twice** to switch that key **off** (a single press only shows a
+  reminder — an accidental tap once silently disabled `P`, and all you saw was "P does nothing");
+  the panel still opens from the canvas right-click menu, `Esc` cancels, and there is a
+  *restore defaults* button;
 - changes take effect **immediately**, no page reload.
 
 **Auto-paste**: one checkbox in the overlay footer, another one in settings — the same switch,
@@ -236,7 +240,7 @@ node tests/run.mjs
 ```
 
 It uses a hand-written minimal DOM stub plus a ComfyUI frontend stub to exercise the whole
-"hotkey → overlay → write back to widget" path end to end (312 assertions) and writes its
+"hotkey → overlay → write back to widget" path end to end (354 assertions) and writes its
 report to `tests/last-run.txt`. No npm install needed — it runs on plain Node (without Node,
 any Electron binary works with `ELECTRON_RUN_AS_NODE=1`).
 

@@ -1449,6 +1449,10 @@
       textarea.className = "xwph-textarea";
       textarea.spellcheck = false;
       textarea.setAttribute("wrap", "soft");
+      // ⚠️ 这里**刻意不要**打 `data-capture-wheel="true"`。新前端确实用这个属性标记
+      // 「滚轮归本部件」，但我们自己的 bridge.js:92 也拿它当「这是画布上的控件元素」的判据
+      // （findWidgetByElement 的兜底），一打上去我们面板里的输入框就被当成节点控件，
+      // 目标解析会认出一个假目标（测试里表现为候选列表不出现）。滚轮靠下面那个捕获相监听器解决。
       textarea.placeholder = t(kind === "positive" ? "titlePositive" : "titleNegative") + "…";
       body.appendChild(textarea);
 
@@ -2309,26 +2313,13 @@
       });
 
       /**
-       * 滚轮实时调字号（用户 1.0.4：「里面的文字…比如按滚轮就实时调整字的大小」）。
-       *
-       * 用户要的是"只放大里面的正文"，所以只有 `.xwph-textarea` 跟着变
-       * （见 CSS 里那段注释）。滚轮这边有个必须守住的例外：
-       * **输入框里不带 Ctrl 的滚轮要留给滚动** —— 提示词动辄几千字，抢掉滚动就没法读了。
-       * 所以：Ctrl/Cmd + 滚轮（在面板任何位置）= 调字号；输入框里光滚 = 滚动；
-       * 面板其它地方（标题栏、目标条、页脚）光滚也当调字号 —— 那里本来也没东西可滚。
+       * 滚轮实时调字号：这个监听器**不在这里挂**，改挂在 document/window 的捕获相，
+       * 见 `onWheelZoom` + `init()` 里那行注册。原因（1.0.8 真机 CDP 实测）：
+       * ComfyUI 前端 0.42.5 在**文档级捕获**就把「落在 textarea 上的滚轮」拦走了 ——
+       * preventDefault + stopPropagation，再把副本转给画布缩放。挂在面板 overlay 的捕获相
+       * 在它下面，输入框里的 Ctrl+滚轮永远轮不到我们（探针数字：document:capture 之后
+       * overlay / dialog / body / textarea 一层都没走到，字号也没变）。
        */
-      dialog.addEventListener(
-        "wheel",
-        function (e) {
-          var node = e.target && typeof e.target.closest === "function" ? e.target : null;
-          var scrollable = node && node.closest(".xwph-textarea, .xwph-picker");
-          if (!(e.ctrlKey || e.metaKey) && scrollable) return; // 老老实实滚
-          swallow(e);
-          var dir = (e.deltaY || 0) < 0 ? 1 : -1;
-          setFontScale(fontScale() + dir * fontStepFor(fontScale()));
-        },
-        { passive: false },
-      );
       targetSelect.addEventListener("change", function (e) {
         stopEvent(e);
         onTargetChange();
@@ -3462,6 +3453,39 @@
     host.appendChild(panels.positive.overlay);
     host.appendChild(panels.negative.overlay);
 
+    /**
+     * 滚轮实时调字号（用户 1.0.4：「里面的文字…比如按滚轮就实时调整字的大小」）。
+     *
+     * 规则不变：Ctrl/Cmd + 滚轮（面板里任何位置）= 调字号；输入框里光滚 = 滚提示词
+     * （几千字的提示词不能抢掉滚动）；标题栏/目标条/页脚光滚也当调字号。
+     *
+     * 为什么挂在 **window/document 的捕获相**、而不是面板上：ComfyUI 前端 0.42.5 在文档级
+     * 捕获就把落在 textarea 上的滚轮拦走（preventDefault + stopPropagation，再转发给画布缩放，
+     * 见 settingStore 的 `isCanvasGestureWheel` / `bindMultilineTextareaWidget`）。谁站在最上面
+     * 谁先拿到事件 —— 我们只能站到它上面去。真机探针数字（1.0.8 那版挂在 overlay 捕获相时）：
+     * document:capture 之后 overlay / dialog / .xwph-body / textarea 一层都没走到。
+     *
+     * 范围收得很死：只处理落在我们自己面板（`.xwph-overlay`）里的滚轮，别的一概不碰。
+     */
+    function onWheelZoom(e) {
+      var node = e.target && typeof e.target.closest === "function" ? e.target : null;
+      if (!node || !node.closest(".xwph-overlay")) return; // 不是我们面板上的滚轮
+      var scrollable = node.closest(".xwph-textarea, .xwph-picker");
+      if (!(e.ctrlKey || e.metaKey) && scrollable) {
+        // 输入框里光滚 = 滚提示词。但 0.42.5 的前端会在文档级捕获把 textarea 上的滚轮
+        // 转给画布缩放（探针实测 defaultPrevented 为真），所以我们自己滚给自己：
+        // 吃掉事件 + 手动挪 scrollTop，几千字的提示词还读得动，画布也不跟着乱缩。
+        swallow(e);
+        var max = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight);
+        var next = (scrollable.scrollTop || 0) + (e.deltaY || 0);
+        scrollable.scrollTop = next < 0 ? 0 : next > max ? max : next;
+        return;
+      }
+      swallow(e);
+      var dir = (e.deltaY || 0) < 0 ? 1 : -1;
+      setFontScale(fontScale() + dir * fontStepFor(fontScale()));
+    }
+
     function init(api) {
       ensureStyles();
 
@@ -3493,7 +3517,13 @@
 
         // 从别的程序复制完切回来这一下（自动粘贴的第二条路，详见那一节）。
         win.addEventListener("focus", onWindowFocus, true);
+
+        // 滚轮调字号：优先挂 window 捕获相 —— 它在 document 捕获相**之上**，
+        // 才能抢在 ComfyUI 0.42.5 那个文档级拦截之前拿到事件（详见 onWheelZoom）。
+        win.addEventListener("wheel", onWheelZoom, { capture: true, passive: false });
       }
+      // 没有 window 的场合（测试桩等）退到 document 捕获相，规则一样。
+      doc.addEventListener("wheel", onWheelZoom, { capture: true, passive: false });
       doc.addEventListener("visibilitychange", onVisibilityChange, true);
 
       debugLog("initialized; storage =", storage.kind, "; locale =", t.locale);

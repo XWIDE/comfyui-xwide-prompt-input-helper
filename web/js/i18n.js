@@ -154,7 +154,7 @@
       settingShortcutCheckNote:
         "点一下某个方框，然后直接按下你想用的组合键即可。\n" +
         "下面每个键各有一行状态：✓ 可用 / ! 容易误触 / ✕ 冲突。\n" +
-        "按 Delete 或 Backspace 可以把这个键关掉（关掉后那个面板就只能用菜单打开）。",
+        "按两次 Delete 或 Backspace 才会把这个键关掉（关掉后那个面板就只能用菜单打开）。",
       shortcutCapture: "点这里改",
       shortcutPressKey: "按下组合键…",
       shortcutOk: "✓ 这个组合可用，未发现冲突。",
@@ -169,6 +169,7 @@
       shortcutHintHead: "当前：",
       shortcutReset: "恢复默认按键",
       shortcutCleared: "已关掉这个键（面板还能从右键菜单打开）。",
+      shortcutOffConfirm: "再按一次 Delete / Backspace 就关掉这个键（按两下是防手滑）。",
 
       // —— 信息页（关于）：品牌 + 作者与链接 + 用法 + 快捷键
       aboutVersionLabel: "版本",
@@ -349,7 +350,7 @@
       settingShortcutCheckNote:
         "Click one of the boxes and press the combination you want.\n" +
         "Each key gets its own status line: ✓ available / ! easy to trigger by accident / ✕ conflict.\n" +
-        "Press Delete or Backspace to switch a key off (with it off, that panel only opens from the menu).",
+        "Press Delete or Backspace twice to switch a key off (with it off, that panel only opens from the menu).",
       shortcutCapture: "click to change",
       shortcutPressKey: "press keys…",
       shortcutOk: "✓ This combination is available; no conflict found.",
@@ -364,6 +365,7 @@
       shortcutHintHead: "Current: ",
       shortcutReset: "Restore the default keys",
       shortcutCleared: "This key is now off (the panel still opens from the right-click menu).",
+      shortcutOffConfirm: "Press Delete / Backspace once more to turn this key off (twice, so an accidental press can't disable it).",
       aboutVersionLabel: "Version",
       aboutAuthorLabel: "Author",
       aboutLinksLabel: "Author & links",

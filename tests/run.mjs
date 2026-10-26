@@ -1459,11 +1459,18 @@ env.dispatch(wheelArea, "wheel", { ctrlKey: true, deltaY: 100 });
 await flush();
 eq(scaleVar(), "1", "Ctrl + 滚轮往下 = 缩小");
 
-// 输入框里**不带 Ctrl** 的滚轮必须留给滚动本身：提示词动辄几千字，抢掉滚动就没法读了。
-const plainWheel = env.dispatch(wheelArea, "wheel", { deltaY: -100 });
+// 输入框里**不带 Ctrl** 的滚轮 = 滚提示词，字号不动。1.0.8 起这条要我们自己动手：
+// 0.42.5 的前端在文档级捕获就把 textarea 上的滚轮转给画布缩放（真机探针实测 defaultPrevented
+// 为真），所以我们吃掉事件 + 自己挪 scrollTop —— 不然读几千字提示词一滚就把画布缩没了。
+const plainWheelUp = env.dispatch(wheelArea, "wheel", { deltaY: -100 });
 await flush();
 eq(scaleVar(), "1", "输入框里光滚轮不改字号（那是滚提示词用的）");
-ok(!plainWheel.defaultPrevented, "光滚轮没有被我们拦掉（浏览器照常滚动）");
+ok(plainWheelUp.defaultPrevented, "输入框里光滚轮被我们吃掉了（不吃掉的话 0.42.5 会拿去缩放画布）");
+eq(wheelArea.scrollTop, 0, "已经在顶部，往上滚不越界");
+env.dispatch(wheelArea, "wheel", { deltaY: 40 });
+await flush();
+eq(wheelArea.scrollTop, 40, "往下滚由我们自己挪 scrollTop（提示词照样读得动）");
+eq(scaleVar(), "1", "滚动过程中字号没被动过");
 
 // 面板其它地方（那里本来没东西可滚）光滚也当调字号。
 env.dispatch(fontPanel.querySelector(".xwph-header"), "wheel", { deltaY: -100 });
@@ -1472,6 +1479,47 @@ eq(scaleVar(), "1.1", "标题栏上光滚也能调字号");
 env.dispatch(fontPanel.querySelector(".xwph-header"), "wheel", { deltaY: 100 });
 await flush();
 eq(scaleVar(), "1", "再滚回来");
+
+// —— 1.0.8：ComfyUI 前端 0.42.5 之后，「Ctrl/Cmd + 滚轮」被前端定义成**画布缩放**手势
+// （settingStore 里 isCanvasGestureWheel = ctrlKey || metaKey；节点输入框那条
+// bindMultilineTextareaWidget 直接 preventDefault + stopPropagation + processMouseWheel）。
+// 我们把监听器挂在 overlay 的**捕获相**并吃掉事件，所以：外层任何冒泡相处理器都拿不到。
+let wheelLeaked = false;
+env.doc.addEventListener("wheel", () => {
+  wheelLeaked = true;
+});
+const leakedCheck = env.dispatch(wheelArea, "wheel", { ctrlKey: true, deltaY: -100 });
+await flush();
+eq(scaleVar(), "1.1", "0.42.5 之后 Ctrl + 滚轮仍然调得动字号");
+ok(leakedCheck.defaultPrevented, "这个滚轮被我们吃掉了（前端不会再拿去缩放画布）");
+ok(!wheelLeaked, "事件没有外溢到 document 冒泡相（画布拿不到它）");
+
+// 反向钉死一个坑：我们**不能**给面板输入框打 data-capture-wheel —— bridge.js:92 把
+// 这个属性当「画布上的控件元素」判据，打了目标解析就会认出假目标。
+ok(!wheelArea.hasAttribute("data-capture-wheel"), "面板输入框没有冒充画布控件（data-capture-wheel 是 bridge.js 的判据）");
+env.dispatch(fontPanel.querySelector(".xwph-header"), "wheel", { deltaY: 100 });
+await flush();
+eq(scaleVar(), "1", "滚回 100%，后面的小节从干净状态开始");
+
+// —— 1.0.8 真机探针（CDP）抓到的真正根因：前端在**文档级捕获**就拦走落在 textarea 上的滚轮
+// （preventDefault + stopPropagation，再把副本转给画布）。挂在面板 overlay 的捕获相在它下面，
+// 输入框里的 Ctrl+滚轮一层都走不到我们。所以我们挂 window 捕获相 = 站在它上面。
+// 这条断言就是在模拟那个拦截器：它一旦抢到，字号就调不动了。
+let frontInterceptorFired = 0;
+const frontInterceptor = (e) => {
+  frontInterceptorFired += 1;
+  e.preventDefault();
+  e.stopPropagation();
+};
+env.doc.addEventListener("wheel", frontInterceptor, { capture: true });
+env.dispatch(wheelArea, "wheel", { ctrlKey: true, deltaY: -100 });
+await flush();
+eq(scaleVar(), "1.1", "前端在 document 捕获相拦截时，我们的滚轮照样生效（说明挂得比它高）");
+eq(frontInterceptorFired, 0, "事件被我们在 window 捕获相吃掉了，前端的文档级拦截器根本没机会跑");
+env.doc.removeEventListener("wheel", frontInterceptor, { capture: true });
+env.dispatch(fontPanel.querySelector(".xwph-header"), "wheel", { deltaY: 100 });
+await flush();
+eq(scaleVar(), "1", "回到 100%，后面的小节从干净状态开始");
 
 section("粘贴：别处复制的内容自己进面板");
 
@@ -1563,38 +1611,34 @@ ok(
 manager._library.remove("我的风格");
 ok(!manager._library.all().some((e) => e.name === "我的风格"), "词条删得掉");
 
-section("设置：注册进 ComfyUI 原生设置面板（只有两行）");
+section("设置：注册进 ComfyUI 原生设置面板（只有三行，用原生排版）");
 
 // 两个来源的事实：① 用户 m02067 的回答「放到本有的设置里，就是左下角那个」——
-// 不要自造设置弹窗；② 用户 1.0.4 发的真机截图：「就是图1，就是我的排板有问题的地方」。
-// 那一眼看出的毛病是重复与噪音：两行**文字**快捷键设置跟新编辑器说的是同一件事、
-// 却常常显示得不一样（截图里编辑器是 P，下面那行还写着 Ctrl+S），"关于"那一行更是被
-// 前端渲染成一个装着版本号的可编辑文本框。所以现在**只留两行**：改快捷键、开关自动粘贴。
+// 不要自造设置弹窗；② 用户 1.0.8 的话：「设置里版提排版也给我改了，这些我没让你动，
+// 你为什么要动他？？」——我把品牌区塞进设置页、还藏了 ComfyUI 的标签列去"居中"。
+// 现在收回成**三行**，用原生排版：快捷键 / 自动粘贴 / 文字大小。插件信息只在「关于」里。
 const settingsItems = env.app.registeredSettings;
-eq(settingsItems.length, 4, "设置面板里四行（插件信息 / 快捷键 / 自动粘贴 / 文字大小）");
+eq(settingsItems.length, 3, "设置面板里只有三行（快捷键 / 自动粘贴 / 文字大小）");
 
-const infoItem = settingsItems.find((i) => i.id === "XWidePromptHelper.info");
 const checkItem = settingsItems.find((i) => i.id === "XWidePromptHelper.shortcutCheck");
 const autoItem = settingsItems.find((i) => i.id === "XWidePromptHelper.autopaste");
 const fontItem = settingsItems.find((i) => i.id === "XWidePromptHelper.fontScale");
-ok(!!infoItem, "插件信息那一行的 id 是 XWidePromptHelper.info");
 ok(!!checkItem, "快捷键那一行的 id 是 XWidePromptHelper.shortcutCheck");
 ok(!!autoItem, "自动粘贴那一行的 id 是 XWidePromptHelper.autopaste");
 ok(!!fontItem, "文字大小那一行的 id 是 XWidePromptHelper.fontScale");
 ok(!settingsItems.some((i) => /^XWidePromptHelper\.shortcut\./.test(String(i.id))), "两行文字快捷键设置已经删掉");
 ok(!settingsItems.some((i) => i.id === "XWidePromptHelper.about"), "那条会被渲染成文本框的「关于」行已经删掉");
 ok(!settingsItems.some((i) => i.type === "text"), "设置面板里不再有会被渲染成文本框的展示行");
+ok(!settingsItems.some((i) => i.id === "XWidePromptHelper.info"), "设置页里那整页品牌区已经撤掉（信息只在「关于」弹窗里）");
 
-// 用户用红箭头指着设置面板左边那一条说「这个页面排版还没改」，参考图是
-// X-WIDE_plugin_model_manager：品牌区打头 + 卡片分区。所以那一页右边那一列现在是
-// 「品牌区 + 作者与链接 + 用法」三张卡片（后面几行也各自是一张卡片）。
-const infoBlock = infoItem.type();
-ok(String(infoBlock.className).includes("xwph-page"), "插件信息那一行渲染成一张「页面」");
-ok(!!infoBlock.querySelector(".xwph-about-brand"), "页面打头是品牌区（logo + 标题 + 副标题 + 徽章）");
-ok(!!infoBlock.querySelector(".xwph-about-logo"), "品牌区里有 logo");
-ok(!!infoBlock.querySelector(".xwph-about-lic"), "有协议徽章");
-eq(infoBlock.querySelectorAll(".xwph-linkbtn").length, 2, "「作者与链接」里只有两个入口");
-ok(String(infoBlock.querySelector(".xwph-about-text").textContent).includes("清空"), "「用法」卡片里有那几条说明");
+// 三行都别再用 `.xwph-card` 包一层带标题的卡片：ComfyUI 左边那列本来就写着这一行叫什么，
+// 卡片标题会跟它重复一遍（用户嫌的就是这种重复）。
+[checkItem, autoItem, fontItem].forEach((item) => {
+  ok(
+    !item.type().querySelector(".xwph-card-title"),
+    "「" + item.name + "」那一行里没有重复的卡片标题（标签列就是它的名字）"
+  );
+});
 
 // 函数型 type：原生面板会把我们返回的 DOM 直接挂进这一行（X-WIDE 别的插件也这么干）。
 eq(typeof checkItem.type, "function", "快捷键行用函数型 type 渲染自定义 DOM");
@@ -1602,10 +1646,10 @@ eq(checkItem.name, "快捷键", "快捷键行的名字很短（不再是那一�
 ok(String(checkItem.tooltip || "").length < 60, "它的 tooltip 只有一句话（长提示会挂在那儿不消失）");
 ok(Array.isArray(checkItem.category) && checkItem.category.length >= 1, "设置项有分类（决定显示在原生面板哪个分组）");
 
-eq(typeof autoItem.type, "function", "自动粘贴那一行也渲染成卡片（这样整页才能居中排版）");
-ok(!!autoItem.type().querySelector(".xwph-check-box"), "卡片里有勾选框");
+eq(typeof autoItem.type, "function", "自动粘贴那一行也是函数型（勾选框 + 一句说明）");
+ok(!!autoItem.type().querySelector(".xwph-check-box"), "那一行里有勾选框");
 ok(String(autoItem.tooltip || "").length < 60, "自动粘贴的 tooltip 也只有一句话");
-ok(String(autoItem.name || "").length > 0, "卡片行的名字还在（设置面板的搜索按名字过滤）");
+ok(String(autoItem.name || "").length > 0, "那一行的名字还在（设置面板的搜索按名字过滤）");
 
 // 前端 settingStore 的建树坑：同一条 category 路径的最后一段会被标成 leaf，
 // 两行共用就只剩一行。所以这两行的分类末段必须不同。
@@ -1668,8 +1712,7 @@ section("快捷键：自己改 + 冲突提示");
 // 函数型设置项的返回值就是挂在原生面板那一行下面的 DOM，所以测试可以直接驱动它。
 const editorRoot = checkItem.type();
 ok(!!editorRoot, "函数型设置项返回了 DOM");
-ok(String(editorRoot.className || "").includes("xwph-card"), "快捷键那一行渲染成一张卡片");
-ok(!!editorRoot.querySelector(".xwph-shortcut-editor"), "卡片里是快捷键编辑器");
+ok(String(editorRoot.className || "").includes("xwph-shortcut-editor"), "快捷键那一行直接就是编辑器（不再包一层带标题的卡片）");
 
 const caps = editorRoot.querySelectorAll(".xwph-keycap");
 eq(caps.length, 2, "两个键各有一个按键框");
@@ -1736,7 +1779,10 @@ env.dispatch(caps[0], "pointerdown", { button: 0 });
 await flush();
 env.dispatch(env.win, "keydown", env.keyEvent({ key: "Delete", code: "Delete" }));
 await flush();
-ok(!helper.shortcuts().positive, "Delete 把正向这个键关掉了");
+ok(!!helper.shortcuts().positive, "第一下 Delete 不真的关掉（防手滑：1.0.8 用户就是这么把 P 关掉的）");
+env.dispatch(env.win, "keydown", env.keyEvent({ key: "Delete", code: "Delete" }));
+await flush();
+ok(!helper.shortcuts().positive, "连按两下 Delete 才把正向这个键关掉");
 ok(statusLines[0].className.includes("xwph-warn"), "关掉之后状态行提醒它现在是关着的");
 
 // "恢复默认按键"要能一次复原。
@@ -1824,8 +1870,8 @@ ok(
 ok(String(aboutBox.querySelector(".xwph-about-sub").textContent).length > 0, "有一句副标题");
 
 const aboutMeta = String(aboutBox.querySelector(".xwph-about-meta").textContent || "");
-ok(aboutMeta.includes("1.0.7"), "徽章里写着版本号 1.0.7");
-eq(helper.version, "1.0.7", "插件对外报的版本号也是 1.0.7");
+ok(aboutMeta.includes("1.0.8"), "徽章里写着版本号 1.0.8");
+eq(helper.version, "1.0.8", "插件对外报的版本号也是 1.0.8");
 ok(aboutMeta.includes("GPL-3.0"), "徽章里写着协议 GPL-3.0");
 const licenseLink = aboutBox.querySelector(".xwph-about-lic");
 ok(!!licenseLink, "协议是个可点的徽章");

@@ -21,7 +21,7 @@ import "./prompt_panel.js";
   var PKG = "comfyui-xwide-prompt-helper";
   var I18N = globalThis.XWidePromptI18n;
   var Panel = globalThis.XWidePromptPanel;
-  var PLUGIN_VERSION = "1.0.7";
+  var PLUGIN_VERSION = "1.0.8";
 
   /**
    * 扩展在 ComfyUI 里的静态路由名（= custom_nodes 下的**目录名**）。
@@ -350,10 +350,11 @@ import "./prompt_panel.js";
     var t = I18N.createTranslator(localeOf());
     // ⚠️ 声明顺序与**显示顺序相反**：前端 flattenTree 是 `n.pop()` 逐个弹出来的
     // （`for(;n.length;){let e=n.pop(); …}`），所以数组里最后一条会排在最上面。
-    // 真机验过：按 [info, shortcutCheck, autopaste, fontScale] 声明时，页面上从上到下
-    // 依次是 文字大小 / 自动粘贴 / 快捷键 / 插件信息 —— 正好倒过来。
-    // 想让它显示成「插件信息（品牌区）→ 快捷键 → 自动粘贴 → 文字大小」，
-    // 这里就得**倒着写**。
+    //
+    // 1.0.8 用户的话：「设置里版提排版也给我改了，这些我没让你动」——
+    // 之前我把整页品牌区（大 logo、用法长文）塞进设置面板，还加了居中 CSS 把
+    // ComfyUI 自己的标签列藏掉。那不是他要的。现在**只留三行**，用 ComfyUI 原生的
+    // 「左标签 / 右控件」排版；插件信息只在「关于」弹窗里（画布右键 → X-WIDE → 关于）。
     return [
       {
         // 文字大小（用户 1.0.4：「打开的对话框里文字太小，加入大小调节」）。
@@ -363,20 +364,18 @@ import "./prompt_panel.js";
         name: t("settingFont"),
         tooltip: t("settingFontShort"),
         type: function () {
-          return card(t("settingFont"), buildFontEditor());
+          return buildFontEditor();
         },
       },
       {
         // 自动粘贴的开关。用户要的是"面板里勾一下、设置里也能勾一下"，
         // 两边的唯一真相都是插件自己的存储（XWidePromptHelper.autopaste）。
-        // 这里也做成一张卡片（而不是原生 boolean）—— 因为这一页每行都要居中，
-        // 原生的开关行左边挂着标签列，藏了标签就只剩一个孤零零的开关。
         id: "XWidePromptHelper.autopaste",
         category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupAutoPaste")],
         name: t("settingAutoPaste"),
         tooltip: t("settingAutoPasteShort"),
         type: function () {
-          return card(t("settingAutoPaste"), buildAutoPasteEditor());
+          return buildAutoPasteEditor();
         },
       },
       {
@@ -386,20 +385,10 @@ import "./prompt_panel.js";
         category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupShortcutCheck")],
         name: t("settingShortcutCheck"),
         // tooltip 只留一句话：长提示会挂在那儿不消失（用户截图里的现象），
-        // 完整说明写在「用法」卡片里。
+        // 完整说明写在「关于」弹窗的「用法」卡片里。
         tooltip: t("settingShortcutCheckShort"),
         type: function () {
-          return card(t("settingShortcutCheck"), buildShortcutEditor());
-        },
-      },
-      {
-        // 品牌区 + 作者与链接 + 用法：整页的"门面"，照参考图排（声明在最后 = 显示在最上）。
-        id: "XWidePromptHelper.info",
-        category: [t("settingCategory"), t("settingGroupPage"), t("settingGroupInfo")],
-        name: t("settingPageInfo"),
-        tooltip: t("settingPageInfoShort"),
-        type: function () {
-          return buildInfoBlock();
+          return buildShortcutEditor();
         },
       },
     ];
@@ -838,6 +827,7 @@ import "./prompt_panel.js";
   function startShortcutCapture(kind) {
     stopShortcutCapture();
     if (!panelManager) return;
+    var tr = I18N.createTranslator(localeOf());
     var state = { kind: kind };
     state.onKey = function (e) {
       e.preventDefault();
@@ -848,7 +838,14 @@ import "./prompt_panel.js";
         return;
       }
       if (e.key === "Delete" || e.key === "Backspace") {
-        // 空 = 关掉这个键（面板还能从右键菜单打开）
+        // 空 = 关掉这个键（面板还能从右键菜单打开）。
+        // 1.0.8 的教训：一次 Delete 就把键悄悄关掉，用户回来只看到「按 P 没反应」。
+        // 所以要连按两次才真的关掉，第一次只给一句提示。
+        if (!state.armedOff) {
+          state.armedOff = true;
+          if (typeof panelManager.toast === "function") panelManager.toast(tr("shortcutOffConfirm"), "warn");
+          return;
+        }
         setShortcutKey(kind, null);
         stopShortcutCapture();
         return;
