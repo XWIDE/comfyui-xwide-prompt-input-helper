@@ -82,6 +82,9 @@
 
       appliedTo: "已写入 {node} · {field}",
       appliedPlain: "已写入",
+      appliedEmptyTo: "已把 {node} · {field} 清空",
+      appliedEmptyPlain: "已把目标清空",
+      applyEmptyNothing: "目标本来就是空的，没动它。",
       nothingToApply: "内容是空的，没有写入。",
       noTarget: "没有找到可写入的文本节点，请先在画布上点一下目标文本框。",
       targetGone: "目标节点已经不在图里了，请重新选一个。",
@@ -303,6 +306,9 @@
 
       appliedTo: "Written to {node} · {field}",
       appliedPlain: "Written",
+      appliedEmptyTo: "Cleared {field} on {node}",
+      appliedEmptyPlain: "Target cleared",
+      applyEmptyNothing: "The target was already empty — nothing changed.",
       nothingToApply: "Nothing to apply — the box is empty.",
       noTarget: "No writable text node found. Click the target text box on the canvas first.",
       targetGone: "The target node is no longer in the graph. Pick another one.",

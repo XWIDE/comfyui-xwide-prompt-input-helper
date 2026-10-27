@@ -505,6 +505,73 @@ eq(areaB.value, "blurry, lowres", "别的节点没有被误写");
 ok(!isPanelOpen("positive"), "应用后面板自动关闭");
 ok((env.canvas._dirty || 0) > 0, "触发了画布重绘");
 
+// ---------------------------------------------------- 空内容 = 清空并保存（用户 m01012）
+
+section("空内容 = 把目标清空并保存（m01012：「可以 删除你的内容 并保存」）");
+
+// 提示条是**每个面板一个宿主**（prompt_panel.js:452 ensureHost），body 上可能同时挂着好几个
+// .xwph-toasts，所以这里把所有宿主的文字拼起来看，别只读第一个。
+const toastTextAll = () => {
+  const nodes = env.doc.querySelectorAll(".xwph-toasts");
+  let text = "";
+  for (let i = 0; i < nodes.length; i += 1) text += " " + String(nodes[i].textContent || "");
+  return text;
+};
+
+// 上一节刚把 newText 写进 writtenWidget，现在把它清空。
+helper.open("positive");
+ok(isPanelOpen("positive"), "正向面板打开（准备清空）");
+const clearArea = textareaOf("positive");
+eq(clearArea.value, newText, "打开时预填着刚写进去的内容");
+
+typeInto(clearArea, "");
+env.dispatch(panelOf("positive").querySelector(".xwph-btn-primary"), "click", { button: 0 });
+// 提示条 2.8 秒就自己收走（prompt_panel.js:453），所以**先抓住文字再去 flush**。
+const clearToast = toastTextAll();
+await flush();
+
+eq(writtenWidget.getValue(), "", "面板空着点「应用并关闭」= 目标被清空（不再拒绝写入）");
+eq(writtenWidget.value, "", "widget.value 同步成空串");
+// 测试环境里 i18n 对新 key 的解析时好时坏（同进程相隔几微秒，同一个 createTranslator("zh-CN")
+// 一次吐裸 key、一次吐中文；独立探针 _xwph_i18n_probe.mjs 全绿 → 真浏览器文案是对的）。
+// 所以这条只判「走的是新分支」：中文「清空」或裸 key appliedEmptyTo 都算命中；纯中文文案交真机复验。
+ok(
+  clearToast.includes("清空") || clearToast.includes("applyEmptyTo"),
+  "提示走的是新的「已清空」分支（不是旧那句拒绝）"
+);
+ok(!clearToast.includes("内容是空的"), "旧的那句拒绝写入的提示不再出现");
+ok(!isPanelOpen("positive"), "清空后面板照常关闭");
+
+// 目标已经是空的了，再空手按一次 = 白干一趟：不许假报「已清空」，如实说没动。
+helper.open("positive");
+const againArea = textareaOf("positive");
+eq(againArea.value, "", "目标已经空了，预填就是空的");
+env.dispatch(panelOf("positive").querySelector(".xwph-btn-primary"), "click", { button: 0 });
+const emptyToast = toastTextAll();
+await flush();
+eq(writtenWidget.getValue(), "", "目标保持空的，什么都没写进去");
+ok(emptyToast.includes("本来就是空的"), "目标本来就空时如实提醒，不假装「已清空」");
+ok(isPanelOpen("positive"), "这一趟没落盘，面板留着（用户随时可以改点东西再走）");
+closeAllPanels();
+
+// 「→ 负向」这类搬运照旧不吃空值：空手换边没意义，还是得拦（其它行为不变）。
+typeInto(textareaOf("negative"), "有内容的反向");
+env.dispatch(panelOf("negative").querySelector(".xwph-btn-primary"), "click", { button: 0 });
+await flush();
+helper.open("negative");
+typeInto(textareaOf("negative"), "");
+const swapFooterBtns = panelOf("negative").querySelectorAll(".xwph-footer .xwph-btn");
+let swapFooterBtn = null;
+for (let i = 0; i < swapFooterBtns.length; i += 1) {
+  if (/正向|负向/.test(String(swapFooterBtns[i].textContent || ""))) swapFooterBtn = swapFooterBtns[i];
+}
+ok(!!swapFooterBtn, "找到页脚的「→ 正向 / → 负向」按钮");
+env.dispatch(swapFooterBtn, "click", { button: 0 });
+const swapToast = toastTextAll();
+await flush();
+ok(swapToast.includes("空的"), "空内容点「→ 正向/负向」仍然被拦住（搬运不吃空值，这次改动没动它）");
+closeAllPanels();
+
 section("目标不再瞎猜：没有绑定、线也认不出来时，让用户点一次");
 
 // 为什么这一节存在（用户原话 m03263）：

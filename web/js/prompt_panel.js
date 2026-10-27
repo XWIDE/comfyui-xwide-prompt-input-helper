@@ -2091,13 +2091,30 @@ import "./bridge.js";
         toast(t("swapped"));
       }
 
+      /**
+       * 目标控件现在的文字（用来判断「写空是不是白干一趟」）。
+       * 读不出来时返回 null —— 调用方只在**明确读到空串**时才当成"本来就是空的"，
+       * 认不出来的一律照常写，绝不因为读不到就拒绝用户。
+       */
+      function targetCurrentText() {
+        var widget = state.target && state.target.widget;
+        if (widget) return String(widget.value == null ? "" : widget.value);
+        var element = state.target && state.target.element;
+        if (element && typeof element.value === "string") return element.value;
+        return null;
+      }
+
       function doApply(closeAfter) {
         var value = textarea.value;
-
-        if (!value) {
-          toast(t("nothingToApply"), "warn");
-          return false;
-        }
+        /**
+         * 空内容 = 用户要的就是**把目标清空并保存**（m01012 点名：「当框内没有内容时，可以为空……
+         * 就是可以 删除你的内容 并保存」）。以前这里直接一句「内容是空的，没有写入。」打回去，
+         * 于是想把某个框清干净的人只能去节点上手删。
+         *
+         * 只留一道闸门：目标**本来就是空的** —— 那这一趟是纯 no-op，如实告诉他没动，
+         * 不许假报「已清空」。其它情况（面板空 + 目标有字）照他的意思写空。
+         */
+        var clearing = !value;
 
         // 用户在下拉框里明确选了「不写入」：别自作聪明重新找一个目标，
         // 他就是要只编辑不落盘，如实告诉他没写才是对的。
@@ -2118,6 +2135,12 @@ import "./bridge.js";
             toast(t("targetGone"), "error");
             return false;
           }
+        }
+
+        // 面板空 + 目标也空：没东西可清，如实说一句，不假装「已清空」。
+        if (clearing && targetCurrentText() === "") {
+          toast(t("applyEmptyNothing"), "warn");
+          return false;
         }
 
         var result = Bridge.setWidgetText(state.target, value, { app: app });
@@ -2164,7 +2187,10 @@ import "./bridge.js";
           hide({ silent: true });
         }
 
-        if (nodeTitle) toast(t("appliedTo", { node: nodeTitle, field: label }), "ok");
+        // 清空成功时要说清「写进去的是空」，不让人以为塞了一段文字进去。
+        if (clearing) {
+          toast(nodeTitle ? t("applyEmptyTo", { node: nodeTitle, field: label }) : t("applyEmptyPlain"), "ok");
+        } else if (nodeTitle) toast(t("appliedTo", { node: nodeTitle, field: label }), "ok");
         else toast(t("appliedPlain"), "ok");
 
         debugLog("applied", value.length, "chars ->", nodeTitle || "(detached element)", label);

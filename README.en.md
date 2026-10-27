@@ -4,7 +4,7 @@
 
 [中文](README.md) | **English**
 
-![version](https://img.shields.io/badge/version-1.0.9-blue)
+![version](https://img.shields.io/badge/version-1.0.10-blue)
 ![license](https://img.shields.io/badge/license-GPL--3.0-green)
 ![comfyui](https://img.shields.io/badge/ComfyUI%20frontend-%E2%89%A5%201.3-blue)
 
@@ -61,9 +61,11 @@ Buttons inside the overlay:
 
 - **Apply & close** — writes back to the target widget. If the write fails you get a
   clear reason and the panel stays open. It will **never** write somewhere you didn't aim at.
+  **Applying while the editor is empty clears the box on the canvas** (since 1.0.10); if the
+  target was already empty it tells you so instead of pretending it cleared something.
 - **Clear** — **empties the editor only; the box on the canvas is never touched.** If the editor
-  was already empty, nothing happens at all. To clear a prompt on the canvas, delete it in the
-  node's own box. (Since 1.0.7 — earlier versions cleared both, and one click lost your text.)
+  was already empty, nothing happens at all. (To clear the canvas box itself, apply with an empty
+  editor — see above.) (Since 1.0.7 — earlier versions cleared both, and one click lost your text.)
 - **Auto-paste** (checkbox, on by default) — see the paragraph below.
 - **→ Negative / → Positive** — send the whole text to the other panel, handy for
   writing one block and splitting it into positive and negative.
